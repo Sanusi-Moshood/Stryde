@@ -11,12 +11,12 @@ import {
   Archivo_600SemiBold,
   Archivo_700Bold,
 } from '@expo-google-fonts/archivo';
-import { verifyPolyfills } from '@/src/verifySetup';
+
 // Prevent splash from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { isAuthenticated, isLoading, initialize } = useAuthStore();
+  const { isAuthenticated, isLoading, initialize, user } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
 
@@ -32,32 +32,21 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (isLoading || !fontsLoaded) return; // Keep splash visible while loading
+    if (isLoading || !fontsLoaded) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const onSplash = segments.at(1) === 'splash';
 
-    if (!isAuthenticated && !inAuthGroup) {
+    // Always show splash on fresh app open
+    if (!inAuthGroup) {
       router.replace('/(auth)/splash');
-    } else if (isAuthenticated && inAuthGroup) {
-      router.replace('/(tabs)/home');
     }
-  }, [isAuthenticated, isLoading, segments]);
+  }, [isLoading, fontsLoaded]);
 
   const onLayoutRootView = useCallback(async () => {
     if (!isLoading && fontsLoaded) {
       // Hide splash once auth check is done
       await SplashScreen.hideAsync();
-    }
-  }, [isLoading, fontsLoaded]);
-
-  useEffect(() => {
-    if (!isLoading && fontsLoaded) {
-      const ready = verifyPolyfills();
-      if (!ready) {
-        console.error('Polyfills not loaded correctly!');
-      } else {
-        console.log('Polyfils is working');
-      }
     }
   }, [isLoading, fontsLoaded]);
 

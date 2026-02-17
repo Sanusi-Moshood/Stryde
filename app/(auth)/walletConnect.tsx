@@ -7,28 +7,24 @@ import {
   ScrollView,
   ImageBackground,
   Image,
-  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import LottieView from 'lottie-react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/src/components/Text';
-// import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 
 export default function WalletConnect() {
   const [loading, setLoading] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
-  const { connect } = useAuthStore();
+  const { connect, isLoading } = useAuthStore();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const handleConnect = async (walletId: string) => {
-    setLoading(true);
-    setSelectedWallet(walletId);
-
+  const handleConnect = async () => {
     try {
-      await connect(walletId);
+      await connect();
       // Auto-redirects to app after successful connection
     } catch (error) {
       console.error('Wallet connection failed:', error);
@@ -65,8 +61,13 @@ export default function WalletConnect() {
                 <Text style={[{ color: '#FF3D00' }, styles.text]}>$SKR</Text>
               </Text>
 
-              <Pressable style={styles.button}>
-                {/* <FontAwesome6 name='plus' size={18} color='black' /> */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={handleConnect}
+                style={styles.button}
+                disabled={isLoading}
+              >
+                <FontAwesome6 name='plus' size={18} color='black' />
                 <Text
                   style={{
                     fontFamily: 'Archivo_500Medium',
@@ -76,7 +77,7 @@ export default function WalletConnect() {
                 >
                   Connect Wallet
                 </Text>
-              </Pressable>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
