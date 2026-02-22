@@ -19,8 +19,6 @@ interface AuthState {
   disconnect: () => Promise<void>;
 }
 
-const router = useRouter();
-
 export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
@@ -52,8 +50,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // No cache → hit server
-      // const user = await getOrCreateUser(publicKey);
-      // await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+      const user = await getOrCreateUser(publicKey);
+      await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
 
       set({
         isAuthenticated: true,
@@ -79,8 +77,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const dummyUser: User = {
         _id: 'dummy123',
         walletAddress: publicKey,
-        username: null,
-        displayName: null,
+        username: 'olawaledev',
+        displayName: 'Olawale',
         avatarUrl: null,
         bio: null,
         createdAt: new Date().toISOString(),
@@ -104,12 +102,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         publicKey,
         user: dummyUser,
       });
-
-      if (!user?.username) {
-        router.replace('/(auth)/profile-setup');
-      } else {
-        router.replace('/(tabs)/home');
-      }
     } catch (error) {
       console.error('Wallet connection failed:', error);
       throw error;

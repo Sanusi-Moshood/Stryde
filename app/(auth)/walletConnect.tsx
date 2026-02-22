@@ -26,6 +26,16 @@ export default function WalletConnect() {
     try {
       await connect();
       // Auto-redirects to app after successful connection
+
+      const { user } = useAuthStore.getState();
+      if (!user?.username) {
+        router.replace('/(auth)/profile-setup');
+
+        console.log('username not set yet');
+      } else {
+        console.log('user exist, go to home');
+        router.replace('/(tabs)/home');
+      }
     } catch (error) {
       console.error('Wallet connection failed:', error);
       alert('Failed to connect wallet. Please try again.');
