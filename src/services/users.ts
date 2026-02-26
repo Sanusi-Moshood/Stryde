@@ -1,32 +1,76 @@
-import { User, UpdateUserInput } from '../types';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { User, UpdateUserInput } from "../types";
 
-const BASE_URL = 'https://your-api.com/api'; // Your Express server URL
+const BASE_URL = "https://vernon-carposporic-unverbally.ngrok-free.dev/api";
 
-export async function getOrCreateUser(walletAddress: string): Promise<User> {
-  const response = await fetch(`${BASE_URL}/users/connect`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+const getAuthHeader = async () => {
+  const token = await AsyncStorage.getItem("@wallet_accessToken");
+  return {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+    Authorization: `Bearer ${token}`,
+  };
+};
+
+export async function connectToServer(walletAddress: string): Promise<{
+  user: User;
+  accessToken: string;
+  refreshToken: string;
+  isNewUser: boolean;
+}> {
+  const response = await fetch(`${BASE_URL}/auth/connect`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+    },
     body: JSON.stringify({ walletAddress }),
   });
-
-  if (!response.ok) throw new Error('Failed to get/create user');
-
-  const { user } = await response.json();
-  return user;
+  if (!response.ok) throw new Error("Failed to connect to server");
+  const data = await response.json();
+  return data.data;
 }
 
-export async function updateUser(
-  walletAddress: string,
-  input: UpdateUserInput,
-): Promise<User> {
-  const response = await fetch(`${BASE_URL}/users/${walletAddress}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+export async function setupProfile(input: UpdateUserInput): Promise<User> {
+  const headers = await getAuthHeader();
+  const response = await fetch(`${BASE_URL}/auth/profile/setup`, {
+    method: "POST",
+    headers,
     body: JSON.stringify(input),
   });
+  if (!response.ok) throw new Error("Failed to setup profile");
+  const data = await response.json();
+  return data.data.user;
+}
 
-  if (!response.ok) throw new Error('Failed to update user');
+export async function getMe(): Promise<User> {
+  const headers = await getAuthHeader();
+  const response = await fetch(`${BASE_URL}/auth/me`, {
+    method: "GET",
+    headers,
+  });
+  if (!response.ok) throw new Error("Failed to get user");
+  const data = await response.json();
+  return data.data.user;
+}
 
-  const { user } = await response.json();
-  return user;
+export async function refreshAccessToken(): Promise<string> {
+  const refreshToken = await AsyncStorage.getItem("@wallet_refreshToken");
+  if (!refreshToken) throw new Error("No refresh token");
+
+  const response = await fetch(`${BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true",
+    },
+    body: JSON.stringify({ refreshToken }),
+  });
+  if (!response.ok) throw new Error("Failed to refresh token");
+  const data = await response.json();
+
+  await AsyncStorage.setItem("@wallet_accessToken", data.data.accessToken);
+  await AsyncStorage.setItem("@wallet_refreshToken", data.data.refreshToken);
+
+  return data.data.accessToken;
 }
