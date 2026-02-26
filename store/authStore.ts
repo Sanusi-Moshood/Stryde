@@ -1,11 +1,11 @@
-import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { connectWallet, disconnectWallet } from '../src/services/wallet';
-import { getOrCreateUser, updateUser } from '../src/services/users';
-import { User, UpdateUserInput } from '@/src/types';
-import { useRouter } from 'expo-router';
+import { create } from "zustand";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { connectWallet, disconnectWallet } from "../src/services/wallet";
+import { User, UpdateUserInput } from "@/src/types";
+import { useRouter } from "expo-router";
+import { connectToServer, getMe, setupProfile } from "@/src/services/users";
 
-const USER_CACHE_KEY = '@user_profile';
+const USER_CACHE_KEY = "@user_profile";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -27,11 +27,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: async () => {
     try {
-      const authToken = await AsyncStorage.getItem('@wallet_authToken');
-      const publicKey = await AsyncStorage.getItem('@wallet_address');
-      console.log(authToken + ' saved wallet token');
+      const accessToken = await AsyncStorage.getItem("@wallet_accessToken");
+      const publicKey = await AsyncStorage.getItem("@wallet_address");
+      console.log(accessToken + " saved wallet token");
 
-      if (!authToken || !publicKey) {
+      if (!accessToken || !publicKey) {
         set({ isLoading: false });
         return;
       }
@@ -50,17 +50,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       // No cache → hit server
-      const user = await getOrCreateUser(publicKey);
+      const user = await getMe();
       await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
-
       set({
         isAuthenticated: true,
         publicKey,
-        user: null,
+        user,
         isLoading: false,
       });
     } catch (error) {
-      console.error('Failed to initialize auth:', error);
+      console.error("Failed to initialize auth:", error);
       set({ isLoading: false });
     }
   },
@@ -70,72 +69,56 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         isLoading: true,
       });
+
+      // Step 1 - connect mobile wallet adapter
       const { publicKey, authToken } = await connectWallet();
       console.log(`conn result in authstore ${publicKey}`);
 
-      // Dummy user with no username to trigger profile setup
-      const dummyUser: User = {
-        _id: 'dummy123',
-        walletAddress: publicKey,
-        username: 'olawaledev',
-        displayName: 'Olawale',
-        avatarUrl: null,
-        bio: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      // Step 2 - connect to our server
+      const { user, accessToken, refreshToken, isNewUser } =
+        await connectToServer(publicKey);
 
-      // Save wallet to storage
-      await AsyncStorage.setItem('@wallet_address', publicKey);
-      await AsyncStorage.setItem('@wallet_authToken', authToken);
-
-      //  server finds or creates user
-      // const user = await getOrCreateUser(publicKey);
-      // await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
-      await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(dummyUser));
-
-      const { user } = useAuthStore.getState(); // Get fresh state
+      // Step 3 - save tokens and wallet info
+      await AsyncStorage.setItem("@wallet_address", publicKey);
+      await AsyncStorage.setItem("@wallet_authToken", authToken);
+      await AsyncStorage.setItem("@wallet_accessToken", accessToken);
+      await AsyncStorage.setItem("@wallet_refreshToken", refreshToken);
+      await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
 
       set({
         isLoading: false,
         isAuthenticated: true,
         publicKey,
-        user: dummyUser,
+        user,
       });
     } catch (error) {
-      console.error('Wallet connection failed:', error);
+      console.error("Wallet connection failed:", error);
+      set({ isLoading: false });
       throw error;
     }
   },
 
   completeProfile: async (input: UpdateUserInput) => {
-    const { publicKey } = get();
-    if (!publicKey) throw new Error('No wallet connected');
-
     try {
-      const updatedUser = await updateUser(publicKey, input);
-
-      // Update cache with new profile
+      const updatedUser = await setupProfile(input);
       await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(updatedUser));
-
       set({ user: updatedUser });
     } catch (error) {
-      console.error('Profile update failed:', error);
+      console.error("Profile update failed:", error);
       throw error;
     }
   },
 
   disconnect: async () => {
     try {
-      const authToken = await AsyncStorage.getItem('@wallet_authToken');
+      const authToken = await AsyncStorage.getItem("@wallet_authToken");
       if (!authToken) return;
 
-      await disconnectWallet(authToken);
-
-      // Clear everything
       await AsyncStorage.multiRemove([
-        '@wallet_address',
-        '@wallet_authToken',
+        "@wallet_address",
+        "@wallet_authToken",
+        "@wallet_accessToken",
+        "@wallet_refreshToken",
         USER_CACHE_KEY,
       ]);
 
@@ -144,10 +127,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         publicKey: null,
         user: null,
       });
-
-      console.log('wallet disconnected');
+      console.log("wallet disconnected");
     } catch (error) {
-      console.error('Wallet disconnect failed:', error);
+      console.error("Wallet disconnect failed:", error);
       throw error;
     }
   },
