@@ -1,8 +1,7 @@
 // app/(tabs)/record.tsx
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, JSX } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   TouchableOpacity,
   Alert,
@@ -11,11 +10,20 @@ import {
   Dimensions,
   Image,
 } from 'react-native';
+import { Text } from '@/src/components/Text';
 import { useRouter } from 'expo-router';
 import MapView, { Polyline, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useActivityStore } from '@/store/activityStore';
+import PlayIcon from '@/assets/icons/play.svg';
+import WalkIcon from '@/assets/icons/walk.svg';
+import RunIcon from '@/assets/icons/run.svg';
+import PauseIcon from '@/assets/icons/pause.svg';
+import FlagIcon from '@/assets/icons/finish.svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
+import ActivityModal from '@/src/components/Ui/ActivityModal';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -95,22 +103,21 @@ const DARK_MAP_STYLE = [
   },
 ];
 
-type ActivityType = 'run' | 'walk' | 'cycle';
+type ActivityType = 'run' | 'walk';
 
 const ACTIVITY_ICONS: Record<ActivityType, string> = {
   run: 'run-fast',
   walk: 'walk',
-  cycle: 'bike',
 };
 
 const ACTIVITY_LABELS: Record<ActivityType, string> = {
   run: 'Run',
   walk: 'Walk',
-  cycle: 'Cycle',
 };
 
 export default function RecordScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     isRecording,
     isPaused,
@@ -132,7 +139,6 @@ export default function RecordScreen() {
     longitude: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [statsExpanded, setStatsExpanded] = useState(false);
   const [isCentered, setIsCentered] = useState(true);
   const [isHeadingMode, setIsHeadingMode] = useState(false);
   const [heading, setHeading] = useState(0);
@@ -142,71 +148,11 @@ export default function RecordScreen() {
   const headingSubRef = useRef<Location.LocationSubscription | null>(null);
 
   // Animations
-  const statsCardOpacity = useRef(new Animated.Value(0)).current;
-  const statsCardScale = useRef(new Animated.Value(0.9)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // ─── Determine UI state ───
   const isIdle = !isRecording;
   const isActiveRecording = isRecording && !isPaused;
   const isPausedState = isRecording && isPaused;
-
-  // ─── Pulse animation for user dot glow ───
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.6,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    pulse.start();
-    return () => pulse.stop();
-  }, []);
-
-  // ─── Stats card animation ───
-  useEffect(() => {
-    if (statsExpanded) {
-      Animated.parallel([
-        Animated.spring(statsCardOpacity, {
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.spring(statsCardScale, {
-          toValue: 1,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(statsCardOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(statsCardScale, {
-          toValue: 0.9,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [statsExpanded]);
-
-  // Auto-expand stats when paused
-  useEffect(() => {
-    if (isPausedState) {
-      setStatsExpanded(true);
-    }
-  }, [isPausedState]);
 
   // ─── Initialize location ───
   useEffect(() => {
@@ -392,7 +338,6 @@ export default function RecordScreen() {
   const handlePauseResume = () => {
     if (isPaused) {
       resumeRecording();
-      setStatsExpanded(false);
     } else {
       pauseRecording();
     }
@@ -409,7 +354,6 @@ export default function RecordScreen() {
           style: 'destructive',
           onPress: async () => {
             await stopRecording();
-            setStatsExpanded(false);
             router.push('/activity-summary');
           },
         },
@@ -444,58 +388,16 @@ export default function RecordScreen() {
   };
 
   const cycleActivityType = () => {
-    const types: ActivityType[] = ['walk', 'run', 'cycle'];
+    const types: ActivityType[] = ['walk', 'run'];
     const currentIndex = types.indexOf(activityType);
     const nextIndex = (currentIndex + 1) % types.length;
     setActivityType(types[nextIndex]);
   };
 
-  // ─── Format helpers ───
-  const formatDistance = (meters: number) => (meters / 1000).toFixed(1);
-
-  const formatDuration = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const ACTIVITY_ICON_COMPONENTS: Record<ActivityType, React.ReactNode> = {
+    walk: <WalkIcon width={20} height={20} color='#FFFFFF' />,
+    run: <RunIcon width={20} height={20} color='#FFFFFF' />,
   };
-
-  const calculatePace = () => {
-    if (distance === 0 || duration === 0) return '--:--';
-    const km = distance / 1000;
-    const paceSeconds = duration / km;
-    if (paceSeconds < 150) return '2:30';
-    if (paceSeconds > 1200) return '20:00';
-    const mins = Math.floor(paceSeconds / 60);
-    const secs = Math.floor(paceSeconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const calculateCalories = () => {
-    // Rough estimate: ~60 cal/km for running
-    return Math.round((distance / 1000) * 60);
-  };
-
-  const calculateSteps = () => {
-    // Rough estimate: ~1300 steps/km
-    const steps = Math.round((distance / 1000) * 1300);
-    return steps.toLocaleString();
-  };
-
-  const mapRegion = location
-    ? {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      }
-    : {
-        latitude: 6.5244,
-        longitude: 3.3792,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      };
-
   return (
     <View style={styles.container}>
       {/* ─── Full-screen Map ─── */}
@@ -524,7 +426,7 @@ export default function RecordScreen() {
                 latitude: c.latitude,
                 longitude: c.longitude,
               }))}
-              strokeColor='#FF6B4A'
+              strokeColor='#FF3D00'
               strokeWidth={5}
               lineJoin='round'
               lineCap='round'
@@ -560,173 +462,118 @@ export default function RecordScreen() {
               isCentered ? (isHeadingMode ? 'compass' : 'navigate') : 'locate'
             }
             size={22}
-            color={isCentered ? '#FF6B4A' : '#888'}
+            color={isCentered ? '#FF3D00' : '#888'}
           />
         </TouchableOpacity>
       )}
 
-      {/* ════════════════════════════════════════════════ */}
-      {/* ─── IDLE STATE ─── */}
-      {/* ════════════════════════════════════════════════ */}
-      {isIdle && (
-        <View style={styles.idleOverlay}>
-          {/* Activity type toggle pill */}
-          <TouchableOpacity
-            style={styles.activityPill}
-            onPress={cycleActivityType}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons
-              name={ACTIVITY_ICONS[activityType] as any}
-              size={20}
-              color='#FFFFFF'
-            />
-            <Text style={styles.activityPillText}>
-              {ACTIVITY_LABELS[activityType]}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Big circular start button */}
-          <TouchableOpacity
-            style={styles.startButton}
-            onPress={handleStart}
-            disabled={!location}
-            activeOpacity={0.8}
-          >
-            <View style={styles.startButtonInner}>
-              <Ionicons name='play' size={32} color='#0A0A0F' />
-            </View>
-          </TouchableOpacity>
-
-          <Text style={styles.startHintText}>Start your first activity!</Text>
-        </View>
-      )}
-
-      {/* ════════════════════════════════════════════════ */}
-      {/* ─── RECORDING STATE: Compact stats bar (top) ─── */}
-      {/* ════════════════════════════════════════════════ */}
-      {isRecording && !statsExpanded && (
-        <TouchableOpacity
-          style={styles.compactStatsBar}
-          onPress={() => setStatsExpanded(true)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.compactStatsContent}>
-            <View style={styles.compactStatItem}>
-              <Text style={styles.compactStatLabel}>Distance</Text>
-              <Text style={styles.compactStatValue}>
-                {formatDistance(distance)}km
-              </Text>
-            </View>
-            <View style={styles.compactStatItem}>
-              <Text style={styles.compactStatLabel}>Time</Text>
-              <Text style={styles.compactStatValue}>
-                {formatDuration(duration)}
-              </Text>
-            </View>
-          </View>
-          <Ionicons name='expand-outline' size={20} color='#888' />
-        </TouchableOpacity>
-      )}
-
-      {/* ════════════════════════════════════════════════ */}
-      {/* ─── RECORDING/PAUSED: Expanded stats card ─── */}
-      {/* ════════════════════════════════════════════════ */}
-      {isRecording && statsExpanded && (
-        <Animated.View
+      <View
+        style={[
+          styles.bottomButtons,
+          { position: 'absolute', bottom: insets.bottom + 108 },
+        ]}
+      >
+        {/* ════════════════════════════════════════════════ */}
+        {/* ─── IDLE STATE ─── */}
+        {/* ════════════════════════════════════════════════ */}
+        <View
           style={[
-            styles.expandedStatsCard,
-            {
-              opacity: statsCardOpacity,
-              transform: [{ scale: statsCardScale }],
-            },
+            styles.idleOverlay,
+            { justifyContent: isIdle ? 'space-between' : 'center' },
           ]}
         >
-          <TouchableOpacity
-            style={styles.collapseButton}
-            onPress={() => {
-              if (!isPaused) setStatsExpanded(false);
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name='contract-outline' size={18} color='#666' />
-          </TouchableOpacity>
+          {/* Activity type toggle pill */}
 
-          <View style={styles.expandedStatRow}>
-            <Text style={styles.expandedStatLabel}>Distance</Text>
-            <Text style={styles.expandedStatValue}>
-              {formatDistance(distance)}km
-            </Text>
-          </View>
+          {isIdle && (
+            <TouchableOpacity onPress={cycleActivityType} activeOpacity={0.7}>
+              <BlurView intensity={8} tint='light' style={styles.activityPill}>
+                {ACTIVITY_ICON_COMPONENTS[activityType]}
+                <Text style={styles.activityPillText}>
+                  {ACTIVITY_LABELS[activityType]}
+                </Text>
+              </BlurView>
+            </TouchableOpacity>
+          )}
+          {/* start/pause button */}
+          {!isPaused && (
+            <View
+              style={{
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 12,
+                marginBottom: 30,
+              }}
+            >
+              <TouchableOpacity
+                style={styles.startButton}
+                onPress={isRecording ? handlePauseResume : handleStart}
+                disabled={!location}
+                activeOpacity={0.8}
+              >
+                {isRecording ? (
+                  <PauseIcon width={24} height={24} />
+                ) : (
+                  <PlayIcon width={24} height={24} />
+                )}
+              </TouchableOpacity>
 
-          <View style={styles.expandedStatRow}>
-            <Text style={styles.expandedStatLabel}>Time</Text>
-            <Text style={styles.expandedStatValueWhite}>
-              {formatDuration(duration)}
-            </Text>
-          </View>
+              {/* {isIdle && (
+                <Text style={styles.startHintText}>
+                  Start your first activity!
+                </Text>
+              )} */}
+            </View>
+          )}
 
-          <View style={styles.expandedStatRow}>
-            <Text style={styles.expandedStatLabel}>Pace</Text>
-            <Text style={styles.expandedStatValueWhite}>
-              {calculatePace()}/km
-            </Text>
-          </View>
-
-          <View style={styles.expandedStatRow}>
-            <Text style={styles.expandedStatLabel}>Calorie</Text>
-            <Text style={styles.expandedStatValueOrange}>
-              {calculateCalories()} Cal
-            </Text>
-          </View>
-
-          <View style={styles.expandedStatRow}>
-            <Text style={styles.expandedStatLabel}>Steps</Text>
-            <Text style={styles.expandedStatValueOrange}>
-              {calculateSteps()}
-            </Text>
-          </View>
-        </Animated.View>
-      )}
-
-      {/* ════════════════════════════════════════════════ */}
-      {/* ─── RECORDING: Pause button (bottom center) ─── */}
-      {/* ════════════════════════════════════════════════ */}
-      {isActiveRecording && (
-        <View style={styles.recordingControls}>
-          <TouchableOpacity
-            style={styles.pauseButton}
-            onPress={handlePauseResume}
-            activeOpacity={0.8}
-          >
-            <Ionicons name='pause' size={32} color='#0A0A0F' />
-          </TouchableOpacity>
+          {isIdle && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              disabled
+              style={{ opacity: 0 }}
+            >
+              <BlurView intensity={8} tint='light' style={styles.activityPill}>
+                {ACTIVITY_ICON_COMPONENTS[activityType]}
+                <Text style={styles.activityPillText}>
+                  {ACTIVITY_LABELS[activityType]}
+                </Text>
+              </BlurView>
+            </TouchableOpacity>
+          )}
         </View>
-      )}
 
-      {/* ════════════════════════════════════════════════ */}
-      {/* ─── PAUSED: Resume & Finish buttons ─── */}
-      {/* ════════════════════════════════════════════════ */}
-      {isPausedState && (
-        <View style={styles.pausedControls}>
-          <TouchableOpacity
-            style={styles.resumeButton}
-            onPress={handlePauseResume}
-            activeOpacity={0.8}
-          >
-            <Ionicons name='play' size={18} color='#0A0A0F' />
-            <Text style={styles.resumeButtonText}>Resume</Text>
-          </TouchableOpacity>
+        {/* ════════════════════════════════════════════════ */}
+        {/* ─── PAUSED: Resume & Finish buttons ─── */}
+        {/* ════════════════════════════════════════════════ */}
+        {isPausedState && (
+          <View style={styles.pausedControls}>
+            <TouchableOpacity
+              style={styles.resumeButton}
+              onPress={handlePauseResume}
+              activeOpacity={0.8}
+            >
+              <PlayIcon />
+              <Text style={styles.resumeButtonText}>Resume</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.finishButton}
-            onPress={handleFinish}
-            activeOpacity={0.8}
-          >
-            <Ionicons name='flag' size={18} color='#FFFFFF' />
-            <Text style={styles.finishButtonText}>Finish</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={styles.finishButton}
+              onPress={handleFinish}
+              activeOpacity={0.8}
+            >
+              <FlagIcon />
+              <Text style={styles.finishButtonText}>Finish</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {!isIdle && (
+        <ActivityModal
+          distance={distance}
+          isRecording={isRecording}
+          duration={duration}
+          isPausedState={isPausedState}
+        />
       )}
     </View>
   );
@@ -775,7 +622,7 @@ const styles = StyleSheet.create({
   // ─── Recenter / GPS button ───
   recenterButton: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
+    top: '50%',
     right: 16,
     width: 44,
     height: 44,
@@ -787,56 +634,62 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
 
-  // ═══════════════════════════════════════════
-  // ─── IDLE STATE ───
-  // ═══════════════════════════════════════════
-  idleOverlay: {
+  bottomButtons: {
     position: 'absolute',
-    bottom: 100,
     left: 0,
     right: 0,
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 25,
+  },
+  // ═══════════════════════════════════════════
+  // ─── IDLE STATE ───
+  // ═══════════════════════════════════════════
+
+  idleOverlay: {
+    flexDirection: 'row',
+    gap: 17,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 25,
   },
   activityPill: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: 'rgba(50, 50, 60, 0.85)',
-    borderRadius: 24,
+    justifyContent: 'center',
+    gap: 4,
+    // paddingHorizontal: 19,
+    // paddingVertical: 13,
+    width: 68,
+    height: 68,
+    overflow: 'hidden',
+    backgroundColor: '#101010',
+    borderRadius: 100,
     alignSelf: 'flex-start',
-    marginLeft: 24,
-    marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   activityPillText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#FFFFFF',
+    fontFamily: 'Archivo_400Regular',
   },
   startButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 74,
+    height: 74,
+    flexDirection: 'column',
+    borderRadius: 100,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    // marginBottom: 12,
     // Glow
     shadowColor: '#FFFFFF',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 12,
-  },
-  startButtonInner: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   startHintText: {
     fontSize: 14,
@@ -935,7 +788,7 @@ const styles = StyleSheet.create({
   expandedStatValueOrange: {
     fontSize: 38,
     fontWeight: '300',
-    color: '#FF6B4A',
+    color: '#FF3D00',
     letterSpacing: -1,
   },
 
@@ -967,12 +820,8 @@ const styles = StyleSheet.create({
   // ─── PAUSED CONTROLS (Resume + Finish) ───
   // ═══════════════════════════════════════════
   pausedControls: {
-    position: 'absolute',
-    bottom: 100,
-    left: 24,
-    right: 24,
     flexDirection: 'row',
-    gap: 12,
+    gap: 32,
   },
   resumeButton: {
     flex: 1,
@@ -996,7 +845,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 18,
-    backgroundColor: '#FF6B4A',
+    backgroundColor: '#FF3D00',
     borderRadius: 30,
   },
   finishButtonText: {

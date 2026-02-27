@@ -76,8 +76,8 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   return (
     <BlurView
-      intensity={8}
-      tint='light'
+      intensity={95}
+      tint='dark'
       style={[styles.tabBar, { bottom: insets.bottom }]}
     >
       {/* Animated sliding indicator */}
@@ -150,7 +150,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#101010',
+
+    backgroundColor: 'rgba(145, 145, 145, 0.16)',
     borderColor: '#1F1F1F',
     borderWidth: 1,
     paddingVertical: 6,
