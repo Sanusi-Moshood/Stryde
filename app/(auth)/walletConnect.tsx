@@ -25,10 +25,16 @@ export default function WalletConnect() {
   const handleConnect = async () => {
     try {
       await connect();
-      // Auto-redirects to app after successful connection
 
       const { user } = useAuthStore.getState();
-      if (!user?.username) {
+
+     const isProfileComplete = 
+      user?.username && 
+      user?.displayName && 
+      user?.displayName !== 'New User' &&
+      user?.bio
+
+    if (!isProfileComplete) {
         router.replace('/(auth)/profile-setup');
 
         console.log('username not set yet');
