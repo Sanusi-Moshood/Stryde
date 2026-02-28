@@ -71,24 +71,25 @@ export default function ProfileSetup() {
   };
 
   const handleContinue = async () => {
-    if (!validate()) return;
+  if (!validate()) return
 
-    setLoading(true);
-    try {
-      await completeProfile({
-        username: username.toLowerCase().trim(),
-        displayName: displayName.trim(),
-        avatarUrl: avatar,
-      });
+  setLoading(true)
+  try {
+    await completeProfile({
+      username: username.toLowerCase().trim(),
+      displayName: displayName.trim(),
+      avatarUrl: avatar ?? '', // send empty string if no avatar for now
+      bio: '',                 // add empty bio since backend requires it
+    })
 
-      router.replace('/(tabs)/home');
-    } catch (error) {
-      console.error('Profile setup failed:', error);
-      alert('Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    router.replace('/(tabs)/home')
+  } catch (error) {
+    console.error('Profile setup failed:', error)
+    alert('Something went wrong. Please try again.')
+  } finally {
+    setLoading(false)
+  }
+}
 
   return (
     <KeyboardAvoidingView
