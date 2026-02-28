@@ -12,6 +12,7 @@ interface AuthState {
   isLoading: boolean;
   publicKey: string | null;
   user: User | null;
+  isNewUser: boolean;
 
   initialize: () => Promise<void>;
   connect: () => Promise<void>;
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   publicKey: null,
   user: null,
+  isNewUser: false,
 
   initialize: async () => {
     try {
@@ -77,6 +79,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Step 2 - connect to our server
       const { user, accessToken, refreshToken, isNewUser } =
         await connectToServer(publicKey);
+      console.log("🆕 isNewUser from server:", isNewUser);
 
       // Step 3 - save tokens and wallet info
       await AsyncStorage.setItem("@wallet_address", publicKey);
@@ -90,6 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isAuthenticated: true,
         publicKey,
         user,
+        isNewUser,
       });
     } catch (error) {
       console.error("Wallet connection failed:", error);
@@ -112,7 +116,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   disconnect: async () => {
     try {
       const authToken = await AsyncStorage.getItem("@wallet_authToken");
-      if (!authToken) return;
+      // Deauthorize from Mock MWA
+      if (authToken) {
+        await disconnectWallet(authToken); // this calls wallet.deauthorize()
+      }
 
       await AsyncStorage.multiRemove([
         "@wallet_address",

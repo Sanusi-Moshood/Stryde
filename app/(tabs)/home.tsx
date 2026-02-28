@@ -1,4 +1,3 @@
-// app/(tabs)/record.tsx
 import { useState, useEffect, useRef, useCallback, JSX } from 'react';
 import {
   View,
@@ -7,7 +6,6 @@ import {
   Alert,
   Animated,
   Platform,
-  Dimensions,
   Image,
 } from 'react-native';
 import { Text } from '@/src/components/Text';
@@ -24,8 +22,6 @@ import FlagIcon from '@/assets/icons/finish.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import ActivityModal from '@/src/components/Ui/ActivityModal';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ─── Dark map style matching the design ───
 const DARK_MAP_STYLE = [

@@ -33,12 +33,23 @@ export async function connectToServer(walletAddress: string): Promise<{
 
 export async function setupProfile(input: UpdateUserInput): Promise<User> {
   const headers = await getAuthHeader();
+  console.log("🔐 Auth header:", JSON.stringify(headers));
+  console.log("📝 Setup profile input:", JSON.stringify(input));
+
   const response = await fetch(`${BASE_URL}/auth/profile/setup`, {
     method: "POST",
     headers,
     body: JSON.stringify(input),
   });
-  if (!response.ok) throw new Error("Failed to setup profile");
+
+  console.log("📡 Setup profile status:", response.status);
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.log("❌ Setup profile error:", error);
+    throw new Error("Failed to setup profile");
+  }
+
   const data = await response.json();
   return data.data.user;
 }
