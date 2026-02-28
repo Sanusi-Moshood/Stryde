@@ -1,50 +1,49 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
   Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text } from '@/src/components/Text';
+
+const avatars = [
+  require('../../assets/avatars/av1.png'),
+  require('../../assets/avatars/av2.png'),
+  require('../../assets/avatars/av3.png'),
+  require('../../assets/avatars/av4.png'),
+  require('../../assets/avatars/av5.png'),
+  require('../../assets/avatars/av6.png'),
+];
 
 export default function ProfileSetup() {
   const router = useRouter();
   const { completeProfile, user } = useAuthStore();
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [bio, setBio] = useState('');
+  const [avatarIndex, setAvatarIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  const insets = useSafeAreaInsets();
   const [errors, setErrors] = useState({
     displayName: '',
     username: '',
   });
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      alert('Permission needed to access photos');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
-
-    if (!result.canceled) {
-      setAvatar(result.assets[0].uri);
-    }
-  };
+  useEffect(() => {
+    // Pick a random avatar on mount
+    setAvatarIndex(Math.floor(Math.random() * avatars.length));
+  }, []);
 
   const validate = () => {
     let valid = true;
@@ -71,147 +70,144 @@ export default function ProfileSetup() {
   };
 
   const handleContinue = async () => {
-  if (!validate()) return
+    if (!validate()) return;
 
-  setLoading(true)
-  try {
-    await completeProfile({
-      username: username.toLowerCase().trim(),
-      displayName: displayName.trim(),
-      avatarUrl: avatar ?? '', // send empty string if no avatar for now
-      bio: '',                 // add empty bio since backend requires it
-    })
+    setLoading(true);
+    try {
+      await completeProfile({
+        username: username.toLowerCase().trim(),
+        displayName: displayName.trim(),
+        bio: bio.trim(),
+        avatarUrl: Image.resolveAssetSource(avatars[avatarIndex]).uri,
+      });
 
-    router.replace('/(tabs)/home')
-  } catch (error) {
-    console.error('Profile setup failed:', error)
-    alert('Something went wrong. Please try again.')
-  } finally {
-    setLoading(false)
-  }
-}
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      console.error('Profile setup failed:', error);
+      alert('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <ImageBackground
+      source={require('../../assets/bgp.png')}
+      style={[
+        styles.container,
+        { paddingTop: insets.top, paddingBottom: insets.bottom },
+      ]}
+      resizeMode='cover'
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps='handled'
+      <View
+        style={{
+          marginBottom: insets.bottom,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          borderTopLeftRadius: 40,
+          borderTopRightRadius: 40,
+          flex: 1,
+        }}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Set Up Profile</Text>
-          <Text style={styles.subtitle}>
-            How should other athletes know you?
-          </Text>
-          {/* Show wallet address */}
-          {user?.walletAddress && (
-            <View style={styles.walletBadge}>
-              <Text style={styles.walletText}>
-                👛 {user.walletAddress.slice(0, 4)}...
-                {user.walletAddress.slice(-4)}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Avatar picker */}
-        <TouchableOpacity style={styles.avatarContainer} onPress={pickImage}>
-          {avatar ? (
-            <Image source={{ uri: avatar }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarIcon}>📷</Text>
-              <Text style={styles.avatarHint}>Add Photo</Text>
-            </View>
-          )}
-          <View style={styles.editBadge}>
-            <Text style={styles.editBadgeText}>✏️</Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Form */}
-        <View style={styles.form}>
-          {/* Display Name */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Display Name</Text>
-            <TextInput
-              style={[
-                styles.input,
-                errors.displayName ? styles.inputError : null,
-              ]}
-              placeholder='e.g. Alex Runner'
-              placeholderTextColor='#555E7A'
-              value={displayName}
-              onChangeText={(text) => {
-                setDisplayName(text);
-                setErrors((e) => ({ ...e, displayName: '' }));
-              }}
-              maxLength={30}
-            />
-            {errors.displayName ? (
-              <Text style={styles.errorText}>{errors.displayName}</Text>
-            ) : null}
-          </View>
-
-          {/* Username */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Username</Text>
-            <View
-              style={[
-                styles.usernameWrap,
-                errors.username ? styles.inputError : null,
-              ]}
-            >
-              <Text style={styles.atSign}>@</Text>
-              <TextInput
-                style={styles.usernameInput}
-                placeholder='yourhandle'
-                placeholderTextColor='#555E7A'
-                value={username}
-                onChangeText={(text) => {
-                  setUsername(text.replace(/[^a-zA-Z0-9_]/g, ''));
-                  setErrors((e) => ({ ...e, username: '' }));
-                }}
-                maxLength={20}
-                autoCapitalize='none'
-                autoCorrect={false}
-              />
-            </View>
-            {errors.username ? (
-              <Text style={styles.errorText}>{errors.username}</Text>
-            ) : (
-              <Text style={styles.hintText}>
-                Letters, numbers and underscores only
-              </Text>
-            )}
-          </View>
-        </View>
-
-        {/* Button */}
-        <TouchableOpacity
+        <KeyboardAvoidingView
           style={[
-            styles.button,
-            (!displayName || !username || loading) && styles.buttonDisabled,
+            styles.flex,
+            {
+              justifyContent: 'flex-end',
+            },
           ]}
-          onPress={handleContinue}
-          disabled={!displayName || !username || loading}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          {loading ? (
-            <ActivityIndicator color='#080B14' />
-          ) : (
-            <Text style={styles.buttonText}>Let's Go 🏃</Text>
-          )}
-        </TouchableOpacity>
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps='handled'
+          >
+            {/* Avatar */}
+            <View style={styles.avatarSection}>
+              <Image source={avatars[avatarIndex]} style={styles.avatar} />
+            </View>
 
-        <Text style={styles.footer}>
-          You can update this anytime in settings
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            {/* Form */}
+            <View style={styles.form}>
+              {/* Display Name */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Display Name</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    errors.displayName ? styles.inputError : null,
+                  ]}
+                  placeholderTextColor='#555E7A'
+                  value={displayName}
+                  onChangeText={(text) => {
+                    setDisplayName(text);
+                    setErrors((e) => ({ ...e, displayName: '' }));
+                  }}
+                  maxLength={30}
+                />
+                {errors.displayName ? (
+                  <Text style={styles.errorText}>{errors.displayName}</Text>
+                ) : null}
+              </View>
+
+              {/* Username */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Username</Text>
+                <TextInput
+                  style={[
+                    styles.input,
+                    errors.username ? styles.inputError : null,
+                  ]}
+                  placeholderTextColor='#555E7A'
+                  value={`@${username}`}
+                  onChangeText={(text) => {
+                    const withoutAt = text.startsWith('@') ? text.slice(1) : '';
+                    setUsername(withoutAt);
+                    setErrors((e) => ({ ...e, username: '' }));
+                  }}
+                  maxLength={30}
+                />
+                {errors.username ? (
+                  <Text style={styles.errorText}>{errors.username}</Text>
+                ) : null}
+              </View>
+
+              {/* Bio */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>
+                  Bio
+                  <Text style={styles.optionalText}>(Optional)</Text>
+                </Text>
+                <TextInput
+                  style={[styles.input, styles.bioInput]}
+                  placeholderTextColor='#555E7A'
+                  value={bio}
+                  onChangeText={setBio}
+                  maxLength={150}
+                  multiline
+                  textAlignVertical='top'
+                />
+              </View>
+            </View>
+          </ScrollView>
+          {/* Continue Button */}
+          <TouchableOpacity
+            style={[
+              styles.button,
+              (!displayName || !username || loading) && styles.buttonDisabled,
+            ]}
+            onPress={handleContinue}
+            disabled={!displayName || !username || loading}
+          >
+            {loading ? (
+              <ActivityIndicator color='#080B14' />
+            ) : (
+              <Text style={styles.buttonText}>Continue</Text>
+            )}
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </View>
+    </ImageBackground>
   );
 }
 
@@ -220,135 +216,89 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#080B14',
   },
-  scroll: {
+  flex: {
+    flex: 1,
     flexGrow: 1,
-    padding: 24,
-    paddingTop: 60,
-    alignItems: 'center',
   },
-  header: {
+  scroll: {
+    padding: 24,
+    paddingTop: 40,
+  },
+  avatarSection: {
     alignItems: 'center',
     marginBottom: 32,
-    width: '100%',
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: 'Archivo_700Bold',
-    color: '#F0F2FF',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    fontFamily: 'Archivo_400Regular',
-    color: '#8B91AC',
-    marginBottom: 12,
-  },
-  walletBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(167,139,250,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.3)',
-    borderRadius: 8,
-  },
-  walletText: {
-    fontFamily: 'Archivo_400Regular',
-    fontSize: 12,
-    color: '#A78BFA',
-  },
-  avatarContainer: {
     position: 'relative',
-    marginBottom: 36,
+    alignSelf: 'center',
   },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#E8FF47',
-  },
-  avatarPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#141827',
+  avatarRing: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     borderWidth: 2,
-    borderColor: '#252D45',
+    borderColor: 'rgba(255,255,255,0.15)',
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
   },
-  avatarIcon: {
-    fontSize: 28,
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
   },
-  avatarHint: {
-    fontSize: 11,
-    color: '#555E7A',
-    fontFamily: 'Archivo_400Regular',
-  },
-  editBadge: {
+  plusButton: {
     position: 'absolute',
     bottom: 0,
     right: 0,
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#E8FF47',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editBadgeText: {
-    fontSize: 12,
+  plusText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#080B14',
+    marginTop: -1,
   },
   form: {
     width: '100%',
     gap: 20,
-    marginBottom: 32,
   },
   inputGroup: {
     gap: 8,
   },
   label: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: 'Archivo_700Bold',
-    color: '#8B91AC',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+    color: '#FFFFFF',
+  },
+  optionalText: {
+    fontSize: 16,
+    fontFamily: 'Archivo_400Regular',
+    color: 'rgba(255, 255, 255, 0.4)',
   },
   input: {
-    backgroundColor: '#0E1220',
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderWidth: 1,
-    borderColor: '#252D45',
-    borderRadius: 14,
-    padding: 16,
-    color: '#F0F2FF',
-    fontSize: 15,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 10,
+    padding: 10,
+    paddingLeft: 12,
+    minHeight: 44,
+    color: '#FFFFFF',
+    fontSize: 16,
     fontFamily: 'Archivo_400Regular',
     width: '100%',
   },
-  usernameWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0E1220',
-    borderWidth: 1,
-    borderColor: '#252D45',
-    borderRadius: 14,
-    paddingLeft: 16,
+  bioInput: {
+    height: 120,
+    paddingTop: 10,
+
+    paddingLeft: 12,
   },
-  atSign: {
-    color: '#555E7A',
-    fontSize: 16,
-    fontFamily: 'Archivo_400Regular',
-  },
-  usernameInput: {
-    flex: 1,
-    padding: 16,
-    paddingLeft: 4,
-    color: '#F0F2FF',
-    fontSize: 15,
-    fontFamily: 'Archivo_400Regular',
-  },
+
   inputError: {
     borderColor: '#FF4D6D',
   },
@@ -357,31 +307,24 @@ const styles = StyleSheet.create({
     color: '#FF4D6D',
     fontFamily: 'Archivo_400Regular',
   },
-  hintText: {
-    fontSize: 12,
-    color: '#555E7A',
-    fontFamily: 'Archivo_400Regular',
+  spacer: {
+    flex: 1,
+    minHeight: 40,
   },
   button: {
-    width: '100%',
     padding: 18,
-    backgroundColor: '#E8FF47',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 100,
     alignItems: 'center',
-    marginBottom: 16,
+    marginHorizontal: 16,
   },
   buttonDisabled: {
-    opacity: 0.4,
+    opacity: 0.7,
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: 20,
     fontFamily: 'Archivo_700Bold',
-    color: '#080B14',
-  },
-  footer: {
-    fontSize: 12,
-    color: '#555E7A',
-    fontFamily: 'Archivo_400Regular',
-    textAlign: 'center',
+    color: '#000000',
+    fontWeight: 500,
   },
 });

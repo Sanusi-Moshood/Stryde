@@ -13,7 +13,7 @@ export default function Splash() {
       if (!isAuthenticated) {
         // Not logged in → wallet connect
         router.replace('/(auth)/walletConnect');
-      } else if (isAuthenticated && !user?.username) {
+      } else if (isAuthenticated && !user?.displayName) {
         // connected wallet but no profile → profile setup
         router.replace('/(auth)/profile-setup');
       } else {

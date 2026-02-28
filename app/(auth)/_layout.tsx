@@ -34,7 +34,7 @@ export default function AuthLayout() {
       <Stack.Screen
         name='profile-setup'
         options={{
-          animation: cameFromSplash ? 'fade' : 'slide_from_right', // Slides up from bottom
+          animation: cameFromSplash ? 'fade' : 'slide_from_right',
         }}
       />
     </Stack>

@@ -1,13 +1,13 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { User, UpdateUserInput } from "../types";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { User, UpdateUserInput } from '../types';
 
-const BASE_URL = "https://vernon-carposporic-unverbally.ngrok-free.dev/api";
+const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
 
 const getAuthHeader = async () => {
-  const token = await AsyncStorage.getItem("@wallet_accessToken");
+  const token = await AsyncStorage.getItem('@wallet_accessToken');
   return {
-    "Content-Type": "application/json",
-    "ngrok-skip-browser-warning": "true",
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
     Authorization: `Bearer ${token}`,
   };
 };
@@ -19,37 +19,41 @@ export async function connectToServer(walletAddress: string): Promise<{
   isNewUser: boolean;
 }> {
   const response = await fetch(`${BASE_URL}/auth/connect`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
-      "ngrok-skip-browser-warning": "true",
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
     },
     body: JSON.stringify({ walletAddress }),
   });
-  if (!response.ok) throw new Error("Failed to connect to server");
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error('Status:', response.status, 'Body:', errorBody);
+    throw new Error(`Server error: ${response.status} - ${errorBody}`);
+  }
   const data = await response.json();
   return data.data;
 }
 
 export async function setupProfile(input: UpdateUserInput): Promise<User> {
-  const headers = await getAuthHeader();
-  console.log("🔐 Auth header:", JSON.stringify(headers));
-  console.log("📝 Setup profile input:", JSON.stringify(input));
-
-  const response = await fetch(`${BASE_URL}/auth/profile/setup`, {
-    method: "POST",
+  let headers = await getAuthHeader();
+  let response = await fetch(`${BASE_URL}/auth/profile/setup`, {
+    method: 'POST',
     headers,
     body: JSON.stringify(input),
   });
 
-  console.log("📡 Setup profile status:", response.status);
-
-  if (!response.ok) {
-    const error = await response.text();
-    console.log("❌ Setup profile error:", error);
-    throw new Error("Failed to setup profile");
+  if (response.status === 401) {
+    await refreshAccessToken();
+    headers = await getAuthHeader();
+    response = await fetch(`${BASE_URL}/auth/profile/setup`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(input),
+    });
   }
 
+  if (!response.ok) throw new Error('Failed to setup profile');
   const data = await response.json();
   return data.data.user;
 }
@@ -57,31 +61,31 @@ export async function setupProfile(input: UpdateUserInput): Promise<User> {
 export async function getMe(): Promise<User> {
   const headers = await getAuthHeader();
   const response = await fetch(`${BASE_URL}/auth/me`, {
-    method: "GET",
+    method: 'GET',
     headers,
   });
-  if (!response.ok) throw new Error("Failed to get user");
+  if (!response.ok) throw new Error('Failed to get user');
   const data = await response.json();
   return data.data.user;
 }
 
 export async function refreshAccessToken(): Promise<string> {
-  const refreshToken = await AsyncStorage.getItem("@wallet_refreshToken");
-  if (!refreshToken) throw new Error("No refresh token");
+  const refreshToken = await AsyncStorage.getItem('@wallet_refreshToken');
+  if (!refreshToken) throw new Error('No refresh token');
 
   const response = await fetch(`${BASE_URL}/auth/refresh`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
-      "ngrok-skip-browser-warning": "true",
+      'Content-Type': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
     },
     body: JSON.stringify({ refreshToken }),
   });
-  if (!response.ok) throw new Error("Failed to refresh token");
+  if (!response.ok) throw new Error('Failed to refresh token');
   const data = await response.json();
 
-  await AsyncStorage.setItem("@wallet_accessToken", data.data.accessToken);
-  await AsyncStorage.setItem("@wallet_refreshToken", data.data.refreshToken);
+  await AsyncStorage.setItem('@wallet_accessToken', data.data.accessToken);
+  await AsyncStorage.setItem('@wallet_refreshToken', data.data.refreshToken);
 
   return data.data.accessToken;
 }
