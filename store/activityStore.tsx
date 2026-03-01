@@ -13,7 +13,7 @@ interface ActivityState {
   duration: number;
   coordinates: Coordinate[];
   startTime: number | null;
-
+  activityType: 'run' | 'walk';
   startRecording: () => Promise<void>;
   pauseRecording: () => void;
   resumeRecording: () => void;
@@ -21,6 +21,7 @@ interface ActivityState {
   updateLocation: (location: Location.LocationObject) => void;
   incrementDuration: () => void; // New function
   reset: () => void;
+  setActivityType: (type: 'run' | 'walk') => void;
 }
 
 const INITIAL_STATE = {
@@ -30,6 +31,7 @@ const INITIAL_STATE = {
   duration: 0,
   coordinates: [],
   startTime: null,
+  activityType: 'walk' as 'run' | 'walk',
 };
 
 export const useActivityStore = create<ActivityState>((set, get) => ({
@@ -54,6 +56,10 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     });
   },
 
+  setActivityType: (type: 'run' | 'walk') => {
+    set({ activityType: type });
+  },
+
   pauseRecording: () => {
     set({ isPaused: true });
   },
@@ -72,11 +78,11 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   updateLocation: (location: Location.LocationObject) => {
     const { coordinates, isPaused, distance } = get();
 
-    console.log('🔴 updateLocation called');
-    console.log('🔴 isPaused:', isPaused);
-    console.log('🔴 Current coords count:', coordinates.length);
+    console.log('updateLocation called');
+    console.log('isPaused:', isPaused);
+    console.log('Current coords count:', coordinates.length);
     console.log(
-      '🔴 New location:',
+      'New location:',
       location.coords.latitude,
       location.coords.longitude,
     );

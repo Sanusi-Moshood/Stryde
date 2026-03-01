@@ -124,9 +124,10 @@ export default function RecordScreen() {
     pauseRecording,
     resumeRecording,
     stopRecording,
+    activityType,
+    setActivityType,
   } = useActivityStore();
 
-  const [activityType, setActivityType] = useState<ActivityType>('walk');
   const [location, setLocation] = useState<Location.LocationObject | null>(
     null,
   );
@@ -150,6 +151,13 @@ export default function RecordScreen() {
   const isActiveRecording = isRecording && !isPaused;
   const isPausedState = isRecording && isPaused;
 
+  useEffect(() => {
+    console.log('📍 Coordinates count:', coordinates.length);
+    if (coordinates.length > 0) {
+      console.log('First point:', coordinates[0]);
+      console.log('Last point:', coordinates[coordinates.length - 1]);
+    }
+  }, [coordinates]);
   // ─── Initialize location ───
   useEffect(() => {
     (async () => {
@@ -221,17 +229,16 @@ export default function RecordScreen() {
   }, []);
 
   // ─── Watch location when recording ───
+  // ─── Watch location when recording ───
   useEffect(() => {
-    if (!isRecording) return;
-
     let subscription: Location.LocationSubscription | null = null;
 
     const watchLocation = async () => {
       subscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 2000,
-          distanceInterval: 5,
+          timeInterval: isRecording ? 1000 : 5000,
+          distanceInterval: isRecording ? 5 : 20,
         },
         (loc) => {
           const newCoord = {
@@ -262,27 +269,48 @@ export default function RecordScreen() {
   }, [isRecording, isPaused, isCentered, isHeadingMode, heading]);
 
   // ─── Heading tracking ───
+  // ─── Heading tracking (Android - bearing from movement) ───
   useEffect(() => {
-    if (!isHeadingMode) {
+    if (!isHeadingMode || !isRecording) {
       headingSubRef.current?.remove();
       headingSubRef.current = null;
       return;
     }
 
+    let lastCoord: { latitude: number; longitude: number } | null = null;
+
     const startHeading = async () => {
-      headingSubRef.current = await Location.watchHeadingAsync((h) => {
-        setHeading(h.trueHeading);
-        if (mapRef.current && currentLocation && isCentered) {
-          mapRef.current.animateCamera(
-            {
-              center: currentLocation,
-              heading: h.trueHeading,
-              zoom: 17,
-            },
-            { duration: 300 },
-          );
-        }
-      });
+      headingSubRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 500, // Update every 500ms for smooth rotation
+          distanceInterval: 3, // Minimum 3m movement to calculate bearing
+        },
+        (loc) => {
+          const newCoord = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
+
+          if (lastCoord) {
+            const bearing = calculateBearing(lastCoord, newCoord);
+            setHeading(bearing);
+
+            if (mapRef.current && isCentered) {
+              mapRef.current.animateCamera(
+                {
+                  center: newCoord,
+                  heading: bearing,
+                  zoom: 17,
+                },
+                { duration: 300 },
+              );
+            }
+          }
+
+          lastCoord = newCoord;
+        },
+      );
     };
 
     startHeading();
@@ -290,8 +318,28 @@ export default function RecordScreen() {
     return () => {
       headingSubRef.current?.remove();
     };
-  }, [isHeadingMode, currentLocation, isCentered]);
+  }, [isHeadingMode, isCentered, isRecording]);
 
+  // ─── Helper: Calculate bearing between two points ───
+  function calculateBearing(
+    start: { latitude: number; longitude: number },
+    end: { latitude: number; longitude: number },
+  ): number {
+    const startLat = (start.latitude * Math.PI) / 180;
+    const startLng = (start.longitude * Math.PI) / 180;
+    const endLat = (end.latitude * Math.PI) / 180;
+    const endLng = (end.longitude * Math.PI) / 180;
+
+    const dLng = endLng - startLng;
+
+    const y = Math.sin(dLng) * Math.cos(endLat);
+    const x =
+      Math.cos(startLat) * Math.sin(endLat) -
+      Math.sin(startLat) * Math.cos(endLat) * Math.cos(dLng);
+
+    const bearing = Math.atan2(y, x) * (180 / Math.PI);
+    return (bearing + 360) % 360;
+  }
   // ─── Timer ───
   useEffect(() => {
     if (isRecording && !isPaused) {
@@ -411,7 +459,7 @@ export default function RecordScreen() {
           mapPadding={{
             top: 0,
             right: 0,
-            bottom: isIdle ? 160 : 120,
+            bottom: isIdle ? 100 : 80,
             left: 0,
           }}
         >
