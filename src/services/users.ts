@@ -52,7 +52,7 @@ export async function setupProfile(input: UpdateUserInput): Promise<User> {
       body: JSON.stringify(input),
     });
   }
-
+  console.log(response);
   if (!response.ok) throw new Error('Failed to setup profile');
   const data = await response.json();
   return data.data.user;

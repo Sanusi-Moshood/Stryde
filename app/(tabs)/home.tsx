@@ -237,8 +237,8 @@ export default function RecordScreen() {
       subscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: isRecording ? 1000 : 5000,
-          distanceInterval: isRecording ? 5 : 20,
+          timeInterval: isRecording ? 1000 : 2000,
+          distanceInterval: isRecording ? 5 : 10,
         },
         (loc) => {
           const newCoord = {
@@ -246,6 +246,10 @@ export default function RecordScreen() {
             longitude: loc.coords.longitude,
           };
           setCurrentLocation(newCoord);
+
+          if (isRecording && !isPaused) {
+            useActivityStore.getState().updateLocation(loc);
+          }
 
           if (mapRef.current && isCentered && !isPaused) {
             mapRef.current.animateCamera(
@@ -464,7 +468,7 @@ export default function RecordScreen() {
           }}
         >
           {/* Route polyline */}
-          {coordinates.length > 1 && (
+          {coordinates.length > 1 && isRecording && (
             <Polyline
               coordinates={coordinates.map((c) => ({
                 latitude: c.latitude,

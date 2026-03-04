@@ -11,9 +11,8 @@ import {
 } from 'react-native';
 import { Text } from '@/src/components/Text';
 import { useRouter } from 'expo-router';
-import MapView, { Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import { captureRef } from 'react-native-view-shot';
 import { Ionicons } from '@expo/vector-icons';
 import { useActivityStore } from '@/store/activityStore';
@@ -21,6 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RunIcon from '@/assets/icons/run.svg';
 import WalkIcon from '@/assets/icons/walk.svg';
 import Svg, { Path } from 'react-native-svg';
+import { useActivityMetrics } from '@/hooks/useaActivity';
+import { useActivitiesStore } from '@/store/activitiesStore';
 
 // Dark map style (keeping for future use)
 const DARK_MAP_STYLE = [
@@ -148,7 +149,9 @@ export default function ActivitySummaryScreen() {
 
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
-
+  const { addActivity } = useActivitiesStore();
+  const { formattedDistance, formattedDuration, pace, calories, steps } =
+    useActivityMetrics(distance, duration);
   const viewShotRef = useRef<View>(null);
   const mapRef = useRef<MapView>(null);
 
@@ -195,32 +198,6 @@ export default function ActivitySummaryScreen() {
       }, 100);
     }
   }, []);
-
-  // Format helpers
-  const formatDistance = (meters: number) => (meters / 1000).toFixed(1);
-
-  const formatDuration = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const calculatePace = () => {
-    if (distance === 0 || duration === 0) return '--:--';
-    const km = distance / 1000;
-    const paceSeconds = duration / km;
-    const mins = Math.floor(paceSeconds / 60);
-    const secs = Math.floor(paceSeconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const calculateCalories = () => Math.round((distance / 1000) * 60);
-
-  const calculateSteps = () => {
-    const steps = Math.round((distance / 1000) * 1300);
-    return steps.toLocaleString();
-  };
 
   // Image picker
   const handlePickImage = async () => {
@@ -310,11 +287,40 @@ export default function ActivitySummaryScreen() {
     ]);
   };
 
-  const handleSave = () => {
-    // TODO: Save activity to backend
-    Alert.alert('Saved!', 'Activity saved successfully.');
-    reset();
-    router.replace('/(tabs)/home');
+  const handleSave = async () => {
+    try {
+      // Calculate pace (seconds per km)
+      const km = distance / 1000;
+      if (km === 0) {
+        Alert.alert('Error', 'No distance recorded');
+        return;
+      }
+
+      const paceSeconds = duration / km;
+      const mins = Math.floor(paceSeconds / 60);
+      const secs = Math.floor(paceSeconds % 60);
+      const paceString = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+      // Save to activities store
+      await addActivity({
+        type: activityType,
+        title: activityTitle,
+        distance,
+        duration,
+        pace: paceString,
+        calories: calories,
+        coordinates,
+      });
+
+      Alert.alert('Success!', 'Activity saved successfully.');
+
+      // Reset activity store and navigate to feed
+      reset();
+      router.replace('/(tabs)/feed');
+    } catch (error) {
+      console.error('Save error:', error);
+      Alert.alert('Error', 'Failed to save activity.');
+    }
   };
 
   const getTimeOfDay = () => {
@@ -375,19 +381,15 @@ export default function ActivitySummaryScreen() {
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Distance</Text>
-                  <Text style={styles.statValue}>
-                    {formatDistance(distance)}km
-                  </Text>
+                  <Text style={styles.statValue}>{formattedDistance}km</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Time</Text>
-                  <Text style={styles.statValue}>
-                    {formatDuration(duration)}
-                  </Text>
+                  <Text style={styles.statValue}>{formattedDuration}</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Pace</Text>
-                  <Text style={styles.statValue}>{calculatePace()}/km</Text>
+                  <Text style={styles.statValue}>{pace}/km</Text>
                 </View>
               </View>
 
@@ -395,13 +397,11 @@ export default function ActivitySummaryScreen() {
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Calorie</Text>
-                  <Text style={styles.statValue}>
-                    {calculateCalories()} Cal
-                  </Text>
+                  <Text style={styles.statValue}>{calories} Cal</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Steps</Text>
-                  <Text style={styles.statValue}>{calculateSteps()}</Text>
+                  <Text style={styles.statValue}>{steps}</Text>
                 </View>
                 <View style={styles.statItem} />
               </View>
