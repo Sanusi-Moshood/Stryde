@@ -5,7 +5,7 @@ const config: ExpoConfig = {
   slug: "Stryde",
   version: "1.0.0",
   orientation: "portrait",
-  icon: "./assets/splash.png",
+  icon: "./assets/Logomark.png",
   userInterfaceStyle: "light",
   newArchEnabled: true,
   scheme: "stryde",
@@ -20,8 +20,8 @@ const config: ExpoConfig = {
   },
   android: {
     adaptiveIcon: {
-      foregroundImage: "./assets/splash.png",
-      backgroundColor: "#ffffff",
+      foregroundImage: "./assets/Logomark.png",
+      backgroundColor: "#FF3D00",
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
