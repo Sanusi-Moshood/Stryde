@@ -1,12 +1,13 @@
-import { create } from 'zustand';
-import * as Location from 'expo-location';
-import { Pedometer } from 'expo-sensors';
+import { create } from "zustand";
+import * as Location from "expo-location";
+import { Pedometer } from "expo-sensors";
 
-import { Coordinate } from '@/src/types';
+import { Coordinate } from "@/src/types";
 import {
   startBackgroundLocation,
   stopBackgroundLocation,
-} from '@/src/services/locationTracking';
+} from "@/src/services/locationTracking";
+import { WalkResult } from "@/src/services/walkService";
 
 interface ActivityState {
   isRecording: boolean;
@@ -17,8 +18,9 @@ interface ActivityState {
   calories: number;
   coordinates: Coordinate[];
   startTime: number | null;
-  activityType: 'run' | 'walk';
+  activityType: "run" | "walk";
   isPedometerAvailable: boolean;
+  lastWalkResult: WalkResult | null;
   startRecording: () => Promise<void>;
   pauseRecording: () => void;
   resumeRecording: () => void;
@@ -26,7 +28,7 @@ interface ActivityState {
   updateLocation: (location: Location.LocationObject) => void;
   incrementDuration: () => void; // New function
   reset: () => void;
-  setActivityType: (type: 'run' | 'walk') => void;
+  setActivityType: (type: "run" | "walk") => void;
 }
 
 const INITIAL_STATE = {
@@ -38,8 +40,9 @@ const INITIAL_STATE = {
   calories: 0,
   coordinates: [],
   startTime: null,
-  activityType: 'walk' as 'run' | 'walk',
+  activityType: "walk" as "run" | "walk",
   isPedometerAvailable: false,
+  lastWalkResult: null,
 };
 
 const CALORIES_PER_KM: Record<string, number> = {
@@ -57,8 +60,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
 
   startRecording: async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      throw new Error('Location permission denied');
+    if (status !== "granted") {
+      throw new Error("Location permission denied");
     }
 
     // Start background location tracking
@@ -72,13 +75,13 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
 
       try {
         pedometerSubscription = await Pedometer.watchStepCount((result) => {
-          const { isPaused } = useActivityStore.getState() 
+          const { isPaused } = useActivityStore.getState();
           if (!isPaused) {
             set({ steps: result.steps });
           }
         });
       } catch (error) {
-        console.error('Error watching step count:', error);
+        console.error("Error watching step count:", error);
       }
     }
 
@@ -95,7 +98,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     });
   },
 
-  setActivityType: (type: 'run' | 'walk') => {
+  setActivityType: (type: "run" | "walk") => {
     set({ activityType: type });
   },
 
@@ -122,11 +125,11 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   updateLocation: (location: Location.LocationObject) => {
     const { coordinates, isPaused, distance, activityType } = get();
 
-    console.log('updateLocation called');
-    console.log('isPaused:', isPaused);
-    console.log('Current coords count:', coordinates.length);
+    console.log("updateLocation called");
+    console.log("isPaused:", isPaused);
+    console.log("Current coords count:", coordinates.length);
     console.log(
-      'New location:',
+      "New location:",
       location.coords.latitude,
       location.coords.longitude,
     );

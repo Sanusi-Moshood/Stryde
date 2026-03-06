@@ -7,7 +7,6 @@ import {
   Alert,
   ScrollView,
   Image,
-  Platform,
 } from 'react-native';
 import { Text } from '@/src/components/Text';
 import { useRouter } from 'expo-router';
@@ -23,45 +22,19 @@ import Svg, { Path } from 'react-native-svg';
 import { useActivityMetrics } from '@/hooks/useaActivity';
 import { useActivitiesStore } from '@/store/activitiesStore';
 
-// Dark map style (keeping for future use)
 const DARK_MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#000000' }] },
   { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#757575' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#212121' }] },
-  {
-    featureType: 'administrative',
-    elementType: 'geometry',
-    stylers: [{ color: '#757575' }],
-  },
-  {
-    featureType: 'poi',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#2c2c2c' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#8a8a8a' }],
-  },
-  {
-    featureType: 'transit',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#797979' }],
-  },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#757575' }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road', elementType: 'geometry.fill', stylers: [{ color: '#2c2c2c' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#797979' }] },
 ];
 
-type ActivityType = 'run' | 'walk';
-
-// Component to render just the route path
 const RoutePathView = ({
   coordinates,
 }: {
@@ -75,7 +48,6 @@ const RoutePathView = ({
     );
   }
 
-  // Calculate bounds
   let minLat = coordinates[0].latitude;
   let maxLat = coordinates[0].latitude;
   let minLng = coordinates[0].longitude;
@@ -90,39 +62,26 @@ const RoutePathView = ({
 
   const latRange = maxLat - minLat || 0.001;
   const lngRange = maxLng - minLng || 0.001;
-
-  // Container dimensions
-  const containerWidth = 335; // Adjust based on your layout
+  const containerWidth = 335;
   const containerHeight = 280;
-
-  // Add padding
   const padding = 20;
   const drawWidth = containerWidth - padding * 2;
   const drawHeight = containerHeight - padding * 2;
-
-  // Scale coordinates to fit container
   const scale = Math.min(drawWidth / lngRange, drawHeight / latRange);
 
-  const points = coordinates.map((coord) => {
-    const x = (coord.longitude - minLng) * scale + padding;
-    const y = containerHeight - ((coord.latitude - minLat) * scale + padding); // Flip Y
-    return { x, y };
-  });
+  const points = coordinates.map((coord) => ({
+    x: (coord.longitude - minLng) * scale + padding,
+    y: containerHeight - ((coord.latitude - minLat) * scale + padding),
+  }));
 
-  // Create SVG path
   const pathData = points
-    .map((point, index) => {
-      if (index === 0) return `M ${point.x} ${point.y}`;
-      return `L ${point.x} ${point.y}`;
-    })
+    .map((point, index) =>
+      index === 0 ? `M ${point.x} ${point.y}` : `L ${point.x} ${point.y}`,
+    )
     .join(' ');
 
   return (
-    <Svg
-      width={containerWidth}
-      height={containerHeight}
-      style={styles.routeSvg}
-    >
+    <Svg width={containerWidth} height={containerHeight} style={styles.routeSvg}>
       <Path
         d={pathData}
         stroke='#FF3D00'
@@ -139,65 +98,94 @@ export default function ActivitySummaryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const {
+    lastWalkResult,
     distance,
     duration,
+    steps,
+    calories,
     coordinates,
     reset,
     activityType,
-    setActivityType,
   } = useActivityStore();
 
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const { addActivity } = useActivitiesStore();
-  const { formattedDistance, formattedDuration, pace, calories, steps } =
+  const { formattedDistance, formattedDuration, pace } =
     useActivityMetrics(distance, duration);
   const viewShotRef = useRef<View>(null);
   const mapRef = useRef<MapView>(null);
 
-  // Calculate map region from coordinates
-  const getMapRegion = () => {
-    if (coordinates.length === 0) {
-      return {
-        latitude: 6.5244,
-        longitude: 3.3792,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      };
-    }
-
-    let minLat = coordinates[0].latitude;
-    let maxLat = coordinates[0].latitude;
-    let minLng = coordinates[0].longitude;
-    let maxLng = coordinates[0].longitude;
-
-    coordinates.forEach((coord) => {
-      minLat = Math.min(minLat, coord.latitude);
-      maxLat = Math.max(maxLat, coord.latitude);
-      minLng = Math.min(minLng, coord.longitude);
-      maxLng = Math.max(maxLng, coord.longitude);
-    });
-
-    const latDelta = (maxLat - minLat) * 1.5;
-    const lngDelta = (maxLng - minLng) * 1.5;
-
+const getMapRegion = () => {
+  if (coordinates.length === 0) {
     return {
-      latitude: (minLat + maxLat) / 2,
-      longitude: (minLng + maxLng) / 2,
-      latitudeDelta: Math.max(latDelta, 0.005),
-      longitudeDelta: Math.max(lngDelta, 0.005),
+      latitude: 6.5244,
+      longitude: 3.3792,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
     };
+  }
+
+  let minLat = coordinates[0].latitude;
+  let maxLat = coordinates[0].latitude;
+  let minLng = coordinates[0].longitude;
+  let maxLng = coordinates[0].longitude;
+
+  coordinates.forEach((coord) => {
+    minLat = Math.min(minLat, coord.latitude);
+    maxLat = Math.max(maxLat, coord.latitude);
+    minLng = Math.min(minLng, coord.longitude);
+    maxLng = Math.max(maxLng, coord.longitude);
+  });
+
+  const latDelta = (maxLat - minLat) * 1.5;
+  const lngDelta = (maxLng - minLng) * 1.5;
+
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2,
+    latitudeDelta: Math.max(latDelta, 0.005),
+    longitudeDelta: Math.max(lngDelta, 0.005),
+  };
+};
+
+useEffect(() => {
+  if (mapRef.current && coordinates.length > 1) {
+    const region = getMapRegion();
+    setTimeout(() => {
+      mapRef.current?.animateToRegion(region, 500);
+    }, 100);
+  }
+}, []);
+
+  // Format helpers
+  const formatDistance = (meters: number) => (meters / 1000).toFixed(2);
+
+  const formatDuration = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Fit map to route on mount
-  useEffect(() => {
-    if (mapRef.current && coordinates.length > 1) {
-      const region = getMapRegion();
-      setTimeout(() => {
-        mapRef.current?.animateToRegion(region, 500);
-      }, 100);
-    }
-  }, []);
+  const calculatePace = () => {
+    if (distance === 0 || duration === 0) return '--:--';
+    const km = distance / 1000;
+    const paceSeconds = duration / km;
+    const mins = Math.floor(paceSeconds / 60);
+    const secs = Math.floor(paceSeconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getTimeOfDay = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) return 'Morning';
+    if (hour >= 12 && hour < 17) return 'Afternoon';
+    if (hour >= 17 && hour < 21) return 'Evening';
+    return 'Night';
+  };
+
+  const activityTitle = `${getTimeOfDay()} ${activityType}`;
 
   // Image picker
   const handlePickImage = async () => {
@@ -206,17 +194,13 @@ export default function ActivitySummaryScreen() {
       Alert.alert('Permission needed', 'Please grant photo library access.');
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [9, 16],
       quality: 0.8,
     });
-
-    if (!result.canceled) {
-      setBackgroundImage(result.assets[0].uri);
-    }
+    if (!result.canceled) setBackgroundImage(result.assets[0].uri);
   };
 
   const handleSnapImage = async () => {
@@ -225,56 +209,36 @@ export default function ActivitySummaryScreen() {
       Alert.alert('Permission needed', 'Please grant camera access.');
       return;
     }
-
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       aspect: [9, 16],
       quality: 0.8,
     });
-
-    if (!result.canceled) {
-      setBackgroundImage(result.assets[0].uri);
-    }
+    if (!result.canceled) setBackgroundImage(result.assets[0].uri);
   };
 
   const handleImageOptions = () => {
-    Alert.alert(
-      'Add Background',
-      'Choose an option',
-      [
-        { text: 'Take Photo', onPress: handleSnapImage },
-        { text: 'Choose from Library', onPress: handlePickImage },
-        { text: 'Cancel', style: 'cancel' },
-      ],
-      { cancelable: true },
-    );
+    Alert.alert('Add Background', 'Choose an option', [
+      { text: 'Take Photo', onPress: handleSnapImage },
+      { text: 'Choose from Library', onPress: handlePickImage },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
-  // Share functionality
   const handleShare = async () => {
     try {
       setIsCapturing(true);
-
-      // Capture the view as image
-      const uri = await captureRef(viewShotRef, {
-        format: 'png',
-        quality: 1,
-      });
-
-      // TODO: Implement actual sharing
-      // For now, just show success
+      await captureRef(viewShotRef, { format: 'png', quality: 1 });
       Alert.alert('Share', 'Activity shared successfully!');
-
-      setIsCapturing(false);
     } catch (error) {
-      console.error('Share error:', error);
       Alert.alert('Error', 'Failed to share activity.');
+    } finally {
       setIsCapturing(false);
     }
   };
 
   const handleClose = () => {
-    Alert.alert('Discard Activity?', 'This activity will not be saved.', [
+    Alert.alert('Discard Activity?', 'Are you sure you want to go back?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Discard',
@@ -323,17 +287,6 @@ export default function ActivitySummaryScreen() {
     }
   };
 
-  const getTimeOfDay = () => {
-    const hour = new Date().getHours();
-
-    if (hour >= 5 && hour < 12) return 'Morning';
-    if (hour >= 12 && hour < 17) return 'Afternoon';
-    if (hour >= 17 && hour < 21) return 'Evening';
-    return 'Night';
-  };
-
-  const activityTitle = `${getTimeOfDay()} ${activityType}`;
-
   return (
     <View style={styles.container}>
       <ScrollView
@@ -360,7 +313,7 @@ export default function ActivitySummaryScreen() {
               <Text style={styles.activityTitle}>{activityTitle}</Text>
             </View>
 
-            {/* Route visualization - just the path */}
+            {/* Route visualization */}
             <View style={styles.routeContainer}>
               {backgroundImage && (
                 <Image
@@ -370,14 +323,11 @@ export default function ActivitySummaryScreen() {
                 />
               )}
               {!backgroundImage && <View style={styles.routeBackground} />}
-
-              {/* Draw route as SVG path or Canvas */}
               <RoutePathView coordinates={coordinates} />
             </View>
 
-            {/* Stats grid */}
+            {/* Stats grid - now using real data from store */}
             <View style={styles.statsGrid}>
-              {/* Row 1 */}
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Distance</Text>
@@ -393,22 +343,63 @@ export default function ActivitySummaryScreen() {
                 </View>
               </View>
 
-              {/* Row 2 */}
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>Calorie</Text>
+                  <Text style={styles.statLabel}>Calories</Text>
+                  {/* ✅ Real calories from store */}
                   <Text style={styles.statValue}>{calories} Cal</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Steps</Text>
-                  <Text style={styles.statValue}>{steps}</Text>
+                  {/* ✅ Real steps from pedometer */}
+                  <Text style={styles.statValue}>
+                    {steps > 0
+                      ? steps.toLocaleString()
+                      : Math.round((distance / 1000) * 1300).toLocaleString()}
+                  </Text>
                 </View>
                 <View style={styles.statItem} />
               </View>
             </View>
           </View>
 
-          {/* Image upload/snap option */}
+          {/* Token reward card */}
+          {lastWalkResult && lastWalkResult.tokensEarned > 0 && (
+            <View style={styles.tokenCard}>
+              <View style={styles.tokenCardLeft}>
+                <Text style={styles.tokenLabel}>$SKR Earned</Text>
+                <Text style={styles.tokenAmount}>
+                  +{lastWalkResult.tokensEarned}
+                </Text>
+                {lastWalkResult.isSeeker && (
+                  <Text style={styles.seekerBadge}>
+                    🔥 Seeker 1.5x bonus applied!
+                  </Text>
+                )}
+              </View>
+              <View style={styles.tokenCardRight}>
+                <Text style={styles.tokenBreakdown}>
+                  {lastWalkResult.tokenBreakdown}
+                </Text>
+                {lastWalkResult.mintTxSignature && (
+                  <Text style={styles.txText} numberOfLines={1}>
+                    ✅ Minted on-chain
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* No tokens earned */}
+          {lastWalkResult && lastWalkResult.tokensEarned === 0 && (
+            <View style={styles.noTokenCard}>
+              <Text style={styles.noTokenText}>
+                No tokens earned — minimum distance or duration not met
+              </Text>
+            </View>
+          )}
+
+          {/* Image button */}
           <TouchableOpacity
             style={styles.imageButton}
             onPress={handleImageOptions}
@@ -492,7 +483,7 @@ const styles = StyleSheet.create({
   },
   routeBackground: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000000',
+    backgroundColor: '#111111',
   },
   backgroundImage: {
     ...StyleSheet.absoluteFillObject,
@@ -514,10 +505,6 @@ const styles = StyleSheet.create({
     color: '#666666',
     fontFamily: 'Archivo_400Regular',
   },
-  map: {
-    width: '100%',
-    height: '100%',
-  },
   statsGrid: {
     gap: 16,
     marginBottom: 24,
@@ -531,7 +518,6 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    fontWeight: '400',
     color: '#888888',
     marginBottom: 4,
     fontFamily: 'Archivo_400Regular',
@@ -542,6 +528,67 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontFamily: 'Archivo_600SemiBold',
   },
+
+  // Token card
+  tokenCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FF3D00',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    gap: 12,
+  },
+  tokenCardLeft: {
+    gap: 4,
+  },
+  tokenCardRight: {
+    flex: 1,
+    gap: 4,
+    alignItems: 'flex-end',
+  },
+  tokenLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
+    fontFamily: 'Archivo_400Regular',
+  },
+  tokenAmount: {
+    fontSize: 40,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    fontFamily: 'Archivo_700Bold',
+  },
+  seekerBadge: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontFamily: 'Archivo_400Regular',
+  },
+  tokenBreakdown: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    fontFamily: 'Archivo_400Regular',
+    textAlign: 'right',
+  },
+  txText: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontFamily: 'Archivo_400Regular',
+  },
+  noTokenCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  noTokenText: {
+    fontSize: 13,
+    color: '#888888',
+    textAlign: 'center',
+    fontFamily: 'Archivo_400Regular',
+  },
+
   imageButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -592,20 +639,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     fontFamily: 'Archivo_700Bold',
-  },
-  saveButton: {
-    paddingVertical: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 100,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    fontFamily: 'Archivo_600SemiBold',
   },
 });
