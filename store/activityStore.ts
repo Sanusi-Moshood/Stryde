@@ -7,7 +7,7 @@ import {
   startBackgroundLocation,
   stopBackgroundLocation,
 } from "@/src/services/locationTracking";
-import { WalkResult } from "@/src/services/walkService";
+import { submitWalk, WalkResult } from "@/src/services/walkService";
 
 interface ActivityState {
   isRecording: boolean;
@@ -111,6 +111,16 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   },
 
   stopRecording: async () => {
+    const {
+      coordinates,
+      distance,
+      duration,
+      steps,
+      calories,
+      startTime,
+      activityType,
+    } = get();
+
     if (pedometerSubscription) {
       pedometerSubscription.remove();
       pedometerSubscription = null;
@@ -120,6 +130,40 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     await stopBackgroundLocation();
 
     set({ isRecording: false, isPaused: false });
+
+    try {
+      const endTime = new Date().toISOString();
+      const startTimeISO = new Date(startTime!).toISOString();
+
+      const result = await submitWalk({
+        activityType,
+        startTime: startTimeISO,
+        endTime,
+        duration,
+        distance,
+        steps,
+        calories,
+        coordinates,
+      });
+
+      console.log("Walk submitted:", result);
+      console.log(`Tokens earned: ${result.tokensEarned}`);
+
+      const { useAuthStore } = await import("@/store/authStore");
+      const user = useAuthStore.getState().user;
+      if (user) {
+        useAuthStore.setState({
+          user: {
+            ...user,
+            tokenBalance: (user.tokenBalance ?? 0) + result.tokensEarned,
+          },
+        });
+      }
+
+      set({ lastWalkResult: result });
+    } catch (error) {
+      console.error("Walk submission failed:", error);
+    }
   },
 
   updateLocation: (location: Location.LocationObject) => {
