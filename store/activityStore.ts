@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import * as Location from 'expo-location';
+import { Pedometer } from 'expo-sensors';
+
 import { Coordinate } from '@/src/types';
 import {
   startBackgroundLocation,
@@ -11,9 +13,12 @@ interface ActivityState {
   isPaused: boolean;
   distance: number;
   duration: number;
+  steps: number;
+  calories: number;
   coordinates: Coordinate[];
   startTime: number | null;
   activityType: 'run' | 'walk';
+  isPedometerAvailable: boolean;
   startRecording: () => Promise<void>;
   pauseRecording: () => void;
   resumeRecording: () => void;
@@ -29,10 +34,23 @@ const INITIAL_STATE = {
   isPaused: false,
   distance: 0,
   duration: 0,
+  steps: 0,
+  calories: 0,
   coordinates: [],
   startTime: null,
   activityType: 'walk' as 'run' | 'walk',
+  isPedometerAvailable: false,
 };
+
+const CALORIES_PER_KM: Record<string, number> = {
+  walk: 65,
+  run: 80,
+  hike: 75,
+  ride: 40,
+};
+
+let pedometerSubscription: { remove: () => void } | null = null;
+let stepCountAtStart = 0;
 
 export const useActivityStore = create<ActivityState>((set, get) => ({
   ...INITIAL_STATE,
@@ -46,6 +64,24 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     // Start background location tracking
     await startBackgroundLocation();
 
+    const isAvailable = await Pedometer.isAvailableAsync();
+
+    if (isAvailable) {
+      const now = new Date();
+      const start = new Date(now.getTime() - 1000);
+
+      try {
+        pedometerSubscription = await Pedometer.watchStepCount((result) => {
+          const { isPaused } = useActivityStore.getState() 
+          if (!isPaused) {
+            set({ steps: result.steps });
+          }
+        });
+      } catch (error) {
+        console.error('Error watching step count:', error);
+      }
+    }
+
     set({
       isRecording: true,
       isPaused: false,
@@ -53,6 +89,9 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       coordinates: [],
       distance: 0,
       duration: 0,
+      steps: 0,
+      calories: 0,
+      isPedometerAvailable: isAvailable,
     });
   },
 
@@ -69,6 +108,11 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   },
 
   stopRecording: async () => {
+    if (pedometerSubscription) {
+      pedometerSubscription.remove();
+      pedometerSubscription = null;
+    }
+
     // Stop background tracking
     await stopBackgroundLocation();
 
@@ -76,7 +120,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   },
 
   updateLocation: (location: Location.LocationObject) => {
-    const { coordinates, isPaused, distance } = get();
+    const { coordinates, isPaused, distance, activityType } = get();
 
     console.log('updateLocation called');
     console.log('isPaused:', isPaused);
@@ -107,9 +151,13 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       );
     }
 
+    const caloriesPerKm = CALORIES_PER_KM[activityType] ?? 65;
+    const newCalories = Math.round((newDistance / 1000) * caloriesPerKm);
+
     set({
       coordinates: [...coordinates, newCoord],
       distance: newDistance,
+      calories: newCalories,
     });
   },
 
@@ -121,6 +169,10 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   },
 
   reset: () => {
+    if (pedometerSubscription) {
+      pedometerSubscription.remove();
+      pedometerSubscription = null;
+    }
     set(INITIAL_STATE);
   },
 }));
