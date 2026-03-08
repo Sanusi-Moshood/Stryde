@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Modal,
 } from 'react-native';
 import { Text } from '@/src/components/Text';
 import { useRouter } from 'expo-router';
@@ -104,6 +105,10 @@ const ACTIVITY_LABELS: Record<ActivityType, string> = {
   walk: 'Walk',
 };
 
+// Minimum thresholds before an activity can be finished and analyzed
+const MIN_DURATION_SECONDS = 60; // 1 minute (for testing)
+const MIN_DISTANCE_METERS = 100; // 0.1 km
+
 export default function RecordScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -117,6 +122,7 @@ export default function RecordScreen() {
     pauseRecording,
     resumeRecording,
     stopRecording,
+    discardRecording,
     activityType,
     setActivityType,
   } = useActivityStore();
@@ -132,6 +138,8 @@ export default function RecordScreen() {
   const [isCentered, setIsCentered] = useState(true);
   const [isHeadingMode, setIsHeadingMode] = useState(false);
   const [heading, setHeading] = useState(0);
+  const [showTooShortModal, setShowTooShortModal] = useState(false);
+  const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
 
   const mapRef = useRef<MapView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -222,35 +230,47 @@ export default function RecordScreen() {
     let subscription: Location.LocationSubscription | null = null;
 
     const watchLocation = async () => {
-      subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: isRecording ? 1000 : 2000,
-          distanceInterval: isRecording ? 5 : 10,
-        },
-        (loc) => {
-          const newCoord = {
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          };
-          setCurrentLocation(newCoord);
+      try {
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        const { status } = await Location.getForegroundPermissionsAsync();
 
-          if (isRecording && !isPaused) {
-            useActivityStore.getState().updateLocation(loc);
-          }
+        if (!servicesEnabled || status !== 'granted') {
+          console.log('🔸 Skipping foreground watch: location not authorized');
+          return;
+        }
 
-          if (mapRef.current && isCentered && !isPaused) {
-            mapRef.current.animateCamera(
-              {
-                center: newCoord,
-                zoom: 17,
-                heading: isHeadingMode ? heading : 0,
-              },
-              { duration: 500 },
-            );
-          }
-        },
-      );
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: isRecording ? 1000 : 2000,
+            distanceInterval: isRecording ? 5 : 10,
+          },
+          (loc) => {
+            const newCoord = {
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            };
+            setCurrentLocation(newCoord);
+
+            if (isRecording && !isPaused) {
+              useActivityStore.getState().updateLocation(loc);
+            }
+
+            if (mapRef.current && isCentered && !isPaused) {
+              mapRef.current.animateCamera(
+                {
+                  center: newCoord,
+                  zoom: 17,
+                  heading: isHeadingMode ? heading : 0,
+                },
+                { duration: 500 },
+              );
+            }
+          },
+        );
+      } catch (error) {
+        console.error('Location watch error:', error);
+      }
     };
 
     watchLocation();
@@ -405,21 +425,16 @@ export default function RecordScreen() {
   };
 
   const handleFinish = () => {
-    Alert.alert(
-      'Finish Activity?',
-      'Are you sure you want to end this activity?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Finish',
-          style: 'destructive',
-          onPress: async () => {
-            await stopRecording();
-            router.push('/activity-summary');
-          },
-        },
-      ],
-    );
+    const belowMinDuration = duration < MIN_DURATION_SECONDS;
+    const belowMinDistance = distance < MIN_DISTANCE_METERS;
+
+    // If the activity is too short, show our custom guidance modal
+    if (belowMinDuration || belowMinDistance) {
+      setShowTooShortModal(true);
+      return;
+    }
+
+    setShowFinishConfirmModal(true);
   };
 
   const handleRecenter = () => {
@@ -634,6 +649,93 @@ export default function RecordScreen() {
           isPausedState={isPausedState}
         />
       )}
+
+      {/* Too-short activity modal */}
+      <Modal
+        transparent
+        visible={showTooShortModal}
+        animationType='fade'
+        onRequestClose={() => setShowTooShortModal(false)}
+      >
+        <View style={styles.tooShortBackdrop}>
+          <View style={styles.tooShortCard}>
+            <Text style={styles.tooShortTitle}>Keep going with Stryde</Text>
+            <Text style={styles.tooShortBody}>
+              Stryde needs you to move for at least 1 minute and about 0.1 km
+              so we can properly analyze your activity and reward your effort.
+              You can resume and keep going, or discard this attempt.
+            </Text>
+
+            <View style={styles.tooShortButtonsRow}>
+              <TouchableOpacity
+                style={styles.tooShortSecondaryButton}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setShowTooShortModal(false);
+                  // Let the user continue the same session
+                  if (isPaused) {
+                    resumeRecording();
+                  }
+                }}
+              >
+                <Text style={styles.tooShortSecondaryText}>Resume</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.tooShortPrimaryButton}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  setShowTooShortModal(false);
+                  await discardRecording();
+                }}
+              >
+                <Text style={styles.tooShortPrimaryText}>Discard</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Finish confirmation modal */}
+      <Modal
+        transparent
+        visible={showFinishConfirmModal}
+        animationType='fade'
+        onRequestClose={() => setShowFinishConfirmModal(false)}
+      >
+        <View style={styles.tooShortBackdrop}>
+          <View style={styles.tooShortCard}>
+            <Text style={styles.tooShortTitle}>Finish Activity?</Text>
+            <Text style={styles.tooShortBody}>
+              Are you sure you want to end this activity?
+            </Text>
+
+            <View style={styles.tooShortButtonsRow}>
+              <TouchableOpacity
+                style={styles.tooShortSecondaryButton}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setShowFinishConfirmModal(false);
+                }}
+              >
+                <Text style={styles.tooShortSecondaryText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.tooShortPrimaryButton}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  setShowFinishConfirmModal(false);
+                  await stopRecording();
+                  router.push('/activity-summary');
+                }}
+              >
+                <Text style={styles.tooShortPrimaryText}>Finish</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -903,6 +1005,64 @@ const styles = StyleSheet.create({
   },
   finishButtonText: {
     fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  tooShortBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  tooShortCard: {
+    backgroundColor: '#101015',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  tooShortTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  tooShortBody: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 20,
+  },
+  tooShortButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  tooShortSecondaryButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tooShortSecondaryText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  tooShortPrimaryButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 999,
+    backgroundColor: '#FF3D00',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tooShortPrimaryText: {
+    fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
   },
