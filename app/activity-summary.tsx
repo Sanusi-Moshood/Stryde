@@ -401,15 +401,14 @@ useEffect(() => {
 
           {/* Image button */}
           <TouchableOpacity
-            style={styles.imageButton}
+            style={[styles.imageButton, { opacity: 0.4 }]}
             onPress={handleImageOptions}
             activeOpacity={0.7}
+            disabled
           >
             <Ionicons name='camera' size={20} color='#FF3D00' />
             <Text style={styles.imageButtonText}>
-              {backgroundImage
-                ? 'Change background image'
-                : 'Snap or upload background image'}
+              Background image (coming soon)
             </Text>
           </TouchableOpacity>
         </View>
@@ -449,8 +448,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 40,
-    justifyContent: 'space-between',
-    flex: 1,
   },
   header: {
     fontSize: 20,
