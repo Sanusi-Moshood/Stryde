@@ -18,6 +18,7 @@ interface ActivityState {
   calories: number;
   coordinates: Coordinate[];
   startTime: number | null;
+  endTime: number | null;
   activityType: "run" | "walk";
   isPedometerAvailable: boolean;
   lastWalkResult: WalkResult | null;
@@ -25,6 +26,7 @@ interface ActivityState {
   pauseRecording: () => void;
   resumeRecording: () => void;
   stopRecording: () => Promise<void>;
+  discardRecording: () => Promise<void>;
   updateLocation: (location: Location.LocationObject) => void;
   incrementDuration: () => void; // New function
   reset: () => void;
@@ -40,6 +42,7 @@ const INITIAL_STATE = {
   calories: 0,
   coordinates: [],
   startTime: null,
+  endTime: null,
   activityType: "walk" as "run" | "walk",
   isPedometerAvailable: false,
   lastWalkResult: null,
@@ -89,6 +92,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       isRecording: true,
       isPaused: false,
       startTime: Date.now(),
+      endTime: null,
       coordinates: [],
       distance: 0,
       duration: 0,
@@ -118,6 +122,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       steps,
       calories,
       startTime,
+      endTime,
       activityType,
     } = get();
 
@@ -132,13 +137,13 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     set({ isRecording: false, isPaused: false });
 
     try {
-      const endTime = new Date().toISOString();
+      const endTimeISO = new Date().toISOString();
       const startTimeISO = new Date(startTime!).toISOString();
 
       const result = await submitWalk({
         activityType,
         startTime: startTimeISO,
-        endTime,
+        endTime: endTimeISO,
         duration,
         distance,
         steps,
@@ -164,6 +169,19 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     } catch (error) {
       console.error("Walk submission failed:", error);
     }
+  },
+
+  // Discard the current recording without uploading/submitting it
+  discardRecording: async () => {
+    if (pedometerSubscription) {
+      pedometerSubscription.remove();
+      pedometerSubscription = null;
+    }
+
+    // Stop background tracking as we're fully discarding this session
+    await stopBackgroundLocation();
+
+    set(INITIAL_STATE);
   },
 
   updateLocation: (location: Location.LocationObject) => {
