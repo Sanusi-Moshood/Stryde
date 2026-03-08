@@ -27,6 +27,8 @@ export interface WalkSubmission {
 export interface WalkResult {
   walkId: string;
   activityType: string;
+  startTime: string;
+  endTime: string;
   distance: number;
   duration: number;
   steps: number;
