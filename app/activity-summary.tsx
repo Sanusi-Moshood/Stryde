@@ -346,12 +346,12 @@ useEffect(() => {
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Calories</Text>
-                  {/* ✅ Real calories from store */}
+                  {/*  Real calories from store */}
                   <Text style={styles.statValue}>{calories} Cal</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statLabel}>Steps</Text>
-                  {/* ✅ Real steps from pedometer */}
+                  {/*  Real steps from pedometer */}
                   <Text style={styles.statValue}>
                     {steps > 0
                       ? steps.toLocaleString()
@@ -383,7 +383,7 @@ useEffect(() => {
                 </Text>
                 {lastWalkResult.mintTxSignature && (
                   <Text style={styles.txText} numberOfLines={1}>
-                    ✅ Minted on-chain
+                    Minted on-chain
                   </Text>
                 )}
               </View>

@@ -78,7 +78,7 @@ export async function submitWalk(data: WalkSubmission): Promise<WalkResult> {
     body: JSON.stringify(data),
   });
 
-  // ✅ Token expired — try refresh then retry once
+  //  Token expired — try refresh then retry once
   if (response.status === 401) {
     const newToken = await refreshAccessToken();
 

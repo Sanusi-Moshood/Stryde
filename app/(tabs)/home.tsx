@@ -370,7 +370,7 @@ export default function RecordScreen() {
   // Handlers
   const handleStart = async () => {
   try {
-    // ✅ Check foreground first
+    //  Check foreground first
     const { status: fgStatus } =
       await Location.getForegroundPermissionsAsync();
 
@@ -382,7 +382,7 @@ export default function RecordScreen() {
       return;
     }
 
-    // ✅ Now ask for background separately with explanation
+    //  Now ask for background separately with explanation
     const { status: bgStatus } =
       await Location.getBackgroundPermissionsAsync();
 
@@ -395,7 +395,7 @@ export default function RecordScreen() {
           'To track your activity when the screen is off, please go to Settings → Location → Allow all the time.',
           [
             { text: 'Cancel', style: 'cancel' },
-            // ✅ Deep link to app settings so they can fix it easily
+            //  Deep link to app settings so they can fix it easily
             {
               text: 'Open Settings',
               onPress: () => {

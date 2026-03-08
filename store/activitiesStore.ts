@@ -1,10 +1,10 @@
 // store/activitiesStore.ts
-import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { create } from "zustand";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface SavedActivity {
   id: string;
-  type: 'run' | 'walk';
+  type: "run" | "walk";
   title: string;
   date: string;
   time: string;
@@ -28,12 +28,12 @@ interface ActivitiesState {
   // Actions
   fetchActivities: () => Promise<void>;
   addActivity: (
-    activity: Omit<SavedActivity, 'id' | 'date' | 'time' | 'createdAt'>,
+    activity: Omit<SavedActivity, "id" | "date" | "time" | "createdAt">,
   ) => Promise<void>;
   clearActivities: () => Promise<void>;
 }
 
-const STORAGE_KEY = 'stryde_activities';
+const STORAGE_KEY = "stryde_activities";
 
 export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
   activities: [],
@@ -59,7 +59,7 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
       // const serverActivities = await response.json();
       // Merge and update local storage
     } catch (error) {
-      console.error('Failed to fetch activities:', error);
+      console.error("Failed to fetch activities:", error);
       set({ loading: false });
     }
   },
@@ -69,15 +69,15 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
       const now = new Date();
 
       // Format date and time
-      const formattedDate = now.toLocaleDateString('en-US', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
+      const formattedDate = now.toLocaleDateString("en-US", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
       });
 
-      const formattedTime = now.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
+      const formattedTime = now.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
         hour12: true,
       });
 
@@ -98,7 +98,7 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
       // Save to local storage
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 
-      console.log('✅ Activity saved to local storage');
+      console.log(" Activity saved to local storage");
 
       // TODO: Also save to backend
       // await fetch('API_URL/activities', {
@@ -106,7 +106,7 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
       //   body: JSON.stringify(newActivity),
       // });
     } catch (error) {
-      console.error('Failed to add activity:', error);
+      console.error("Failed to add activity:", error);
       throw error;
     }
   },
@@ -115,9 +115,9 @@ export const useActivitiesStore = create<ActivitiesState>((set, get) => ({
     try {
       await AsyncStorage.removeItem(STORAGE_KEY);
       set({ activities: [] });
-      console.log('✅ Activities cleared');
+      console.log(" Activities cleared");
     } catch (error) {
-      console.error('Failed to clear activities:', error);
+      console.error("Failed to clear activities:", error);
     }
   },
 }));
