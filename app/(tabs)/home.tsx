@@ -1,18 +1,16 @@
-import { useState, useEffect, useRef, useCallback, JSX } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   Alert,
-  Animated,
   Platform,
-  Image,
 } from 'react-native';
 import { Text } from '@/src/components/Text';
 import { useRouter } from 'expo-router';
 import MapView, { Polyline, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useActivityStore } from '@/store/activityStore';
 import PlayIcon from '@/assets/icons/play.svg';
 import WalkIcon from '@/assets/icons/walk.svg';
@@ -23,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import ActivityModal from '@/src/components/Ui/ActivityModal';
 
-// ─── Dark map style matching the design ───
+// Dark map style matching the design
 const DARK_MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#000000' }] },
   { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
@@ -101,11 +99,6 @@ const DARK_MAP_STYLE = [
 
 type ActivityType = 'run' | 'walk';
 
-const ACTIVITY_ICONS: Record<ActivityType, string> = {
-  run: 'run-fast',
-  walk: 'walk',
-};
-
 const ACTIVITY_LABELS: Record<ActivityType, string> = {
   run: 'Run',
   walk: 'Walk',
@@ -143,12 +136,7 @@ export default function RecordScreen() {
   const mapRef = useRef<MapView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const headingSubRef = useRef<Location.LocationSubscription | null>(null);
-
-  // Animations
-
-  // ─── Determine UI state ───
   const isIdle = !isRecording;
-  const isActiveRecording = isRecording && !isPaused;
   const isPausedState = isRecording && isPaused;
 
   useEffect(() => {
@@ -158,7 +146,8 @@ export default function RecordScreen() {
       console.log('Last point:', coordinates[coordinates.length - 1]);
     }
   }, [coordinates]);
-  // ─── Initialize location ───
+
+  // Initialize location
   useEffect(() => {
     (async () => {
       try {
@@ -228,8 +217,7 @@ export default function RecordScreen() {
     })();
   }, []);
 
-  // ─── Watch location when recording ───
-  // ─── Watch location when recording ───
+  // Watch location when recording
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
 
@@ -272,8 +260,8 @@ export default function RecordScreen() {
     };
   }, [isRecording, isPaused, isCentered, isHeadingMode, heading]);
 
-  // ─── Heading tracking ───
-  // ─── Heading tracking (Android - bearing from movement) ───
+  // Heading tracking
+  // Heading tracking (Android - bearing from movement)
   useEffect(() => {
     if (!isHeadingMode || !isRecording) {
       headingSubRef.current?.remove();
@@ -324,7 +312,7 @@ export default function RecordScreen() {
     };
   }, [isHeadingMode, isCentered, isRecording]);
 
-  // ─── Helper: Calculate bearing between two points ───
+  // Helper: Calculate bearing between two points
   function calculateBearing(
     start: { latitude: number; longitude: number },
     end: { latitude: number; longitude: number },
@@ -344,7 +332,7 @@ export default function RecordScreen() {
     const bearing = Math.atan2(y, x) * (180 / Math.PI);
     return (bearing + 360) % 360;
   }
-  // ─── Timer ───
+  // Timer
   useEffect(() => {
     if (isRecording && !isPaused) {
       timerRef.current = setInterval(() => {
@@ -359,29 +347,54 @@ export default function RecordScreen() {
     };
   }, [isRecording, isPaused]);
 
-  // ─── Handlers ───
+  // Handlers
   const handleStart = async () => {
-    try {
-      const { status: bgStatus } =
-        await Location.getBackgroundPermissionsAsync();
+  try {
+    // ✅ Check foreground first
+    const { status: fgStatus } =
+      await Location.getForegroundPermissionsAsync();
 
-      if (bgStatus !== 'granted') {
-        const { status } = await Location.requestBackgroundPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert(
-            'Background Location Required',
-            'Please allow location access "All the time" for tracking.',
-          );
-          return;
-        }
-      }
-
-      await startRecording();
-    } catch (error) {
-      console.error('Start error:', error);
-      Alert.alert('Error', 'Failed to start tracking.');
+    if (fgStatus !== 'granted') {
+      Alert.alert(
+        'Location Required',
+        'Please allow location access to track your activity.',
+      );
+      return;
     }
-  };
+
+    // ✅ Now ask for background separately with explanation
+    const { status: bgStatus } =
+      await Location.getBackgroundPermissionsAsync();
+
+    if (bgStatus !== 'granted') {
+      const { status } = await Location.requestBackgroundPermissionsAsync();
+
+      if (status !== 'granted') {
+        Alert.alert(
+          'Background Location Required',
+          'To track your activity when the screen is off, please go to Settings → Location → Allow all the time.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            // ✅ Deep link to app settings so they can fix it easily
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                const { Linking } = require('react-native');
+                Linking.openSettings();
+              },
+            },
+          ],
+        );
+        return;
+      }
+    }
+
+    await startRecording();
+  } catch (error) {
+    console.error('Start error:', error);
+    Alert.alert('Error', 'Failed to start tracking.');
+  }
+};
 
   const handlePauseResume = () => {
     if (isPaused) {
@@ -448,7 +461,7 @@ export default function RecordScreen() {
   };
   return (
     <View style={styles.container}>
-      {/* ─── Full-screen Map ─── */}
+      {/* Full-screen Map */}
       {loading && !location ? (
         <View style={[styles.map, { backgroundColor: '#000000' }]} />
       ) : (
@@ -498,7 +511,7 @@ export default function RecordScreen() {
           )}
         </MapView>
       )}
-      {/* ─── Re-center / GPS heading button ─── */}
+      {/* Re-center / GPS heading button */}
       {!isIdle && (
         <TouchableOpacity
           style={styles.recenterButton}
@@ -521,9 +534,8 @@ export default function RecordScreen() {
           { position: 'absolute', bottom: insets.bottom + 108 },
         ]}
       >
-        {/* ════════════════════════════════════════════════ */}
-        {/* ─── IDLE STATE ─── */}
-        {/* ════════════════════════════════════════════════ */}
+    
+        {/* IDLE STATE */}    
         <View
           style={[
             styles.idleOverlay,
@@ -531,7 +543,6 @@ export default function RecordScreen() {
           ]}
         >
           {/* Activity type toggle pill */}
-
           {isIdle && (
             <TouchableOpacity onPress={cycleActivityType} activeOpacity={0.7}>
               <BlurView intensity={8} tint='light' style={styles.activityPill}>
@@ -589,9 +600,9 @@ export default function RecordScreen() {
           )}
         </View>
 
-        {/* ════════════════════════════════════════════════ */}
-        {/* ─── PAUSED: Resume & Finish buttons ─── */}
-        {/* ════════════════════════════════════════════════ */}
+        
+        {/* PAUSED: Resume & Finish buttons */}
+        
         {isPausedState && (
           <View style={styles.pausedControls}>
             <TouchableOpacity
@@ -627,7 +638,7 @@ export default function RecordScreen() {
   );
 }
 
-// ─── Styles ───
+// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -637,7 +648,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
 
-  // ─── Custom user dot ───
+  // Custom user dot
   userDotContainer: {
     width: 40,
     height: 40,
@@ -667,7 +678,7 @@ const styles = StyleSheet.create({
     // no borderWidth needed
   },
 
-  // ─── Recenter / GPS button ───
+  // Recenter / GPS button
   recenterButton: {
     position: 'absolute',
     top: '50%',
@@ -690,10 +701,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 25,
   },
-  // ═══════════════════════════════════════════
-  // ─── IDLE STATE ───
-  // ═══════════════════════════════════════════
 
+  // IDLE STATE
   idleOverlay: {
     flexDirection: 'row',
     gap: 17,
@@ -746,9 +755,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // ═══════════════════════════════════════════
-  // ─── COMPACT STATS BAR (recording, top-left) ───
-  // ═══════════════════════════════════════════
+
+  // COMPACT STATS BAR (recording, top-left)
   compactStatsBar: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 60 : 40,
@@ -784,9 +792,8 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
 
-  // ═══════════════════════════════════════════
-  // ─── EXPANDED STATS CARD ───
-  // ═══════════════════════════════════════════
+
+  // EXPANDED STATS CARD
   expandedStatsCard: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 60 : 40,
@@ -840,9 +847,8 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
 
-  // ═══════════════════════════════════════════
-  // ─── RECORDING CONTROLS (pause button) ───
-  // ═══════════════════════════════════════════
+
+  // RECORDING CONTROLS (pause button)
   recordingControls: {
     position: 'absolute',
     bottom: 100,
@@ -864,9 +870,8 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
 
-  // ═══════════════════════════════════════════
-  // ─── PAUSED CONTROLS (Resume + Finish) ───
-  // ═══════════════════════════════════════════
+
+  // PAUSED CONTROLS (Resume + Finish)
   pausedControls: {
     flexDirection: 'row',
     gap: 32,
