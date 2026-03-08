@@ -1,13 +1,12 @@
 import {
   View,
   TouchableOpacity,
-  Animated,
   StyleSheet,
   LayoutAnimation,
   Platform,
   UIManager,
 } from 'react-native';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useActivityMetrics } from '@/hooks/useaActivity';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -123,17 +122,17 @@ export default function ActivityModal({
           <>
             <View style={[styles.compactStatItem, { alignItems: 'center' }]}>
               <Text style={styles.compactStatLabel}>Pace</Text>
-              <Text style={styles.compactStatValue}>6:20/km</Text>
+              <Text style={styles.compactStatValue}>{pace}/km</Text>
             </View>
 
             <View style={[styles.compactStatItem, { alignItems: 'center' }]}>
               <Text style={styles.compactStatLabel}>Calorie</Text>
-              <Text style={styles.compactStatValue}>1855 Cal</Text>
+              <Text style={styles.compactStatValue}>{calories} Cal</Text>
             </View>
 
             <View style={[styles.compactStatItem, { alignItems: 'center' }]}>
               <Text style={styles.compactStatLabel}>Steps</Text>
-              <Text style={styles.compactStatValue}>14000</Text>
+              <Text style={styles.compactStatValue}>{steps}</Text>
             </View>
           </>
         )}
