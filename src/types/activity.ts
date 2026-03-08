@@ -1,4 +1,4 @@
-export type ActivityType = 'run' | 'walk';
+export type ActivityType = "run" | "walk";
 
 export interface Coordinate {
   latitude: number;
@@ -18,30 +18,28 @@ export interface Activity {
   userId: string;
   type: ActivityType;
   title: string;
-  distance: number; // meters
-  duration: number; // seconds
-  avgPace: number; // seconds per km
+  distance: number;
+  duration: number;
+  steps: number;
   calories: number;
-  elevation: number; // meters gained
   coordinates: Coordinate[];
-  splits: ActivitySplit[];
-  skrEarned: number;
-  challengeId: string | null;
-  crewId: string | null;
+  tokensEarned: number;
+  mintTxSignature?: string;
+  tokenBreakdown?: string;
+  isSeeker?: boolean;
+  status: "verified" | "flagged" | "rejected";
+  challengeId?: string | null;
   isPublic: boolean;
   createdAt: string;
 }
 
 export type CreateActivityInput = Omit<
   Activity,
-  'id' | 'createdAt' | 'skrEarned'
+  | "id"
+  | "createdAt"
+  | "tokensEarned"
+  | "status"
+  | "mintTxSignature"
+  | "tokenBreakdown"
+  | "isSeeker"
 >;
-
-export interface ActivityStats {
-  totalDistance: number;
-  totalActivities: number;
-  totalTime: number;
-  avgPace: number;
-  longestRun: number;
-  currentStreak: number;
-}
