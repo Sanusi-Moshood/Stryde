@@ -381,11 +381,6 @@ useEffect(() => {
                 <Text style={styles.tokenBreakdown}>
                   {lastWalkResult.tokenBreakdown}
                 </Text>
-                {lastWalkResult.mintTxSignature && (
-                  <Text style={styles.txText} numberOfLines={1}>
-                    Minted on-chain
-                  </Text>
-                )}
               </View>
             </View>
           )}
