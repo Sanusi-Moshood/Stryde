@@ -1,5 +1,8 @@
 export const useActivityMetrics = (distance: number, duration: number) => {
-  const formattedDistance = (distance / 1000).toFixed(1);
+  // Distance in km, but never round UP so UI doesn't show 0.1km
+  // until we've actually hit 100m.
+  const km = distance / 1000;
+  const formattedDistance = (Math.floor(km * 10) / 10).toFixed(1);
 
   const hrs = Math.floor(duration / 3600);
   const mins = Math.floor((duration % 3600) / 60);
