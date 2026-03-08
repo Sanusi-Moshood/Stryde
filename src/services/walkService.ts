@@ -3,8 +3,36 @@ import { Coordinate } from "../types";
 
 const BASE_URL = process.env.EXPO_PUBLIC_BASE_URL;
 
+// Try to refresh the access token
+const refreshAccessToken = async (): Promise<string | null> => {
+  try {
+    const refreshToken = await AsyncStorage.getItem("@wallet_refreshToken");
+    if (!refreshToken) return null;
+
+    const response = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: JSON.stringify({ refreshToken }),
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const newAccessToken = data.data.accessToken;
+
+    await AsyncStorage.setItem("@wallet_accessToken", newAccessToken);
+    return newAccessToken;
+  } catch {
+    return null;
+  }
+};
+
+// Get auth header, refresh token if needed
 const getAuthHeader = async () => {
-  const token = await AsyncStorage.getItem("@wallet_accessToken");
+  let token = await AsyncStorage.getItem("@wallet_accessToken");
   return {
     "Content-Type": "application/json",
     "ngrok-skip-browser-warning": "true",
@@ -42,17 +70,38 @@ export interface WalkResult {
 }
 
 export async function submitWalk(data: WalkSubmission): Promise<WalkResult> {
-  const headers = await getAuthHeader();
+  let headers = await getAuthHeader();
 
-  const response = await fetch(`${BASE_URL}/walks/submit`, {
+  let response = await fetch(`${BASE_URL}/walks/submit`, {
     method: "POST",
     headers,
     body: JSON.stringify(data),
   });
 
+  // ✅ Token expired — try refresh then retry once
   if (response.status === 401) {
-    // Token expired - could add refresh logic here
-    throw new Error("Session expired. Please reconnect your wallet.");
+    const newToken = await refreshAccessToken();
+
+    if (!newToken) {
+      throw new Error("Session expired. Please reconnect your wallet.");
+    }
+
+    // Retry with new token
+    headers = {
+      ...headers,
+      Authorization: `Bearer ${newToken}`,
+    };
+
+    response = await fetch(`${BASE_URL}/walks/submit`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(data),
+    });
+
+    // Still failing after refresh
+    if (response.status === 401) {
+      throw new Error("Session expired. Please reconnect your wallet.");
+    }
   }
 
   if (!response.ok) {
