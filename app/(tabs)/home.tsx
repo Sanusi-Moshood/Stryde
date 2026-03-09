@@ -142,6 +142,7 @@ export default function RecordScreen() {
   const [heading, setHeading] = useState(0);
   const [showTooShortModal, setShowTooShortModal] = useState(false);
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const mapRef = useRef<MapView>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -451,6 +452,12 @@ export default function RecordScreen() {
     walk: <WalkIcon width={20} height={20} color='#FFFFFF' />,
     run: <RunIcon width={20} height={20} color='#FFFFFF' />,
   };
+
+   if (isNavigating) {
+    return <View style={{ flex: 1, backgroundColor: '#000000' }} />;
+  }
+
+
   return (
     <View style={styles.container}>
       {/* Full-screen Map */}
@@ -703,8 +710,9 @@ export default function RecordScreen() {
                 activeOpacity={0.8}
                 onPress={async () => {
                   setShowFinishConfirmModal(false);
+                  setIsNavigating(true);
                   await stopRecording();
-                  router.push('/activity-summary');
+                  router.replace('/activity-summary');
                 }}
               >
                 <Text style={styles.tooShortPrimaryText}>Finish</Text>
