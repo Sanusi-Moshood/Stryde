@@ -6,6 +6,7 @@ import {
   Alert,
   Platform,
   Modal,
+  Linking,
 } from 'react-native';
 import { Text } from '@/src/components/Text';
 import { useRouter } from 'expo-router';
@@ -21,6 +22,7 @@ import FlagIcon from '@/assets/icons/finish.svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import ActivityModal from '@/src/components/Ui/ActivityModal';
+import { BackgroundLocationModal, useRequestLocationOnMount } from '@/hooks/useRequestLocation';
 
 // Dark map style matching the design
 const DARK_MAP_STYLE = [
@@ -146,6 +148,8 @@ export default function RecordScreen() {
   const headingSubRef = useRef<Location.LocationSubscription | null>(null);
   const isIdle = !isRecording;
   const isPausedState = isRecording && isPaused;
+  const { showBackgroundModal, handleAllowBackground, handleDenyBackground } =
+    useRequestLocationOnMount();
 
   useEffect(() => {
     console.log('📍 Coordinates count:', coordinates.length);
@@ -369,52 +373,25 @@ export default function RecordScreen() {
 
   // Handlers
   const handleStart = async () => {
-  try {
-    //  Check foreground first
-    const { status: fgStatus } =
-      await Location.getForegroundPermissionsAsync();
-
-    if (fgStatus !== 'granted') {
-      Alert.alert(
-        'Location Required',
-        'Please allow location access to track your activity.',
-      );
-      return;
-    }
-
-    //  Now ask for background separately with explanation
-    const { status: bgStatus } =
-      await Location.getBackgroundPermissionsAsync();
-
-    if (bgStatus !== 'granted') {
-      const { status } = await Location.requestBackgroundPermissionsAsync();
-
+    try {
+      const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
-          'Background Location Required',
-          'To track your activity when the screen is off, please go to Settings → Location → Allow all the time.',
+          'Location Required',
+          'Stryde needs location access to track your walks and earn $SKR tokens. You can enable it in Settings.',
           [
             { text: 'Cancel', style: 'cancel' },
-            //  Deep link to app settings so they can fix it easily
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                const { Linking } = require('react-native');
-                Linking.openSettings();
-              },
-            },
-          ],
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
         );
         return;
       }
+      await startRecording();
+    } catch (error) {
+      console.error('Start error:', error);
+      Alert.alert('Error', 'Failed to start tracking.');
     }
-
-    await startRecording();
-  } catch (error) {
-    console.error('Start error:', error);
-    Alert.alert('Error', 'Failed to start tracking.');
-  }
-};
+  };
 
   const handlePauseResume = () => {
     if (isPaused) {
@@ -736,6 +713,14 @@ export default function RecordScreen() {
           </View>
         </View>
       </Modal>
+
+      {showBackgroundModal && (
+        <BackgroundLocationModal
+          visible={showBackgroundModal}
+          onAllow={handleAllowBackground}
+          onDeny={handleDenyBackground}
+        />
+      )}
     </View>
   );
 }
