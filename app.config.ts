@@ -43,6 +43,11 @@ const config: ExpoConfig = {
   web: {
     favicon: "./assets/favicon.png",
   },
+  extra: {
+    eas: {
+      projectId: "4d7ccd1e-9415-47c1-bc45-9a8069800dca",
+    },
+  },
   plugins: [
     "expo-router",
     "expo-font",
