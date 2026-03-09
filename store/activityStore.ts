@@ -57,6 +57,7 @@ const CALORIES_PER_KM: Record<string, number> = {
 
 let pedometerSubscription: { remove: () => void } | null = null;
 let stepCountAtStart = 0;
+let gpsWarmupCount = 0;
 
 export const useActivityStore = create<ActivityState>((set, get) => ({
   ...INITIAL_STATE,
@@ -100,6 +101,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       calories: 0,
       isPedometerAvailable: isAvailable,
     });
+    gpsWarmupCount = 0;
   },
 
   setActivityType: (type: "run" | "walk") => {
@@ -185,6 +187,11 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   },
 
   updateLocation: (location: Location.LocationObject) => {
+    if (gpsWarmupCount < 4) {
+      gpsWarmupCount++;
+      return; // discard first 4 readings
+    }
+
     const { coordinates, isPaused, distance, activityType } = get();
 
     console.log("updateLocation called");
