@@ -7,6 +7,7 @@ import {
   Platform,
   Modal,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { Text } from '@/src/components/Text';
 import { useRouter } from 'expo-router';
@@ -454,7 +455,14 @@ export default function RecordScreen() {
   };
 
    if (isNavigating) {
-    return <View style={{ flex: 1, backgroundColor: '#000000' }} />;
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000000', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <ActivityIndicator size="large" color="#FF3D00" />
+        <Text style={{ color: '#888888', fontSize: 14, fontFamily: 'Archivo_400Regular' }}>
+          Submitting activity...
+        </Text>
+      </View>
+    );
   }
 
 
